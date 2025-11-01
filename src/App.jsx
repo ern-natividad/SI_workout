@@ -6,6 +6,8 @@ import LandingPage  from './pages/landing_page'
 import SignUp from './pages/SignUp'
 import About from './pages/about'
 import LoginPage from './pages/login_page'
+import TDEECalculator from './components/TDEECalculator'
+
 
 function App() {
 
@@ -20,6 +22,7 @@ function App() {
         <Route path="/signup" element={<SignUp />} />
         <Route path="/about" element={<About />} />
         <Route path="/LoginPage" element={<LoginPage />} />
+        <Route path="/tdee" element={<TDEECalculator />} />
         <Route path="*" element={<h2>Page Not Found (404)</h2>} />
       </Routes>
     </div>
