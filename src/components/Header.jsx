@@ -1,26 +1,32 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import '../style/header.css'
 
 const Header = () => {
   return (
-    <div>
-        <header>
-      Navigation links will go here
-      <ul>
-        <li>
-            <Link to="/" >Workout</Link>
+    <div class="glass-wrapper">
+      <header>
+        <div class="ul-wrapper">
+        <ul>
+          <li>
+            <Link to="/" >Home</Link>
             <br></br> <Link to="/signup" >Sign Up</Link>
             <br></br> <Link to="/tdee" >Calculator</Link>
-        </li>
-        <li>
+          </li>
+          <li>
             <Link to="/LoginPage" >Start</Link>
-        </li>
-        <li>
+          </li>
+          <li>
             <Link to="/About" >About</Link>
-        </li>
-      </ul>
+          </li>
+          <li>FAQ's</li>
+          <li>Contacts</li>
+        </ul></div>
       </header>
     </div>
+    
+
+
   )
 }
 
