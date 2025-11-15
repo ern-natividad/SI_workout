@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 .header {
   position: fixed;
   top: 0;
@@ -116,3 +117,37 @@ body {
   .profile-image { height: 30px; width: 30px; }
 }
 
+=======
+body {
+    background-image: url(../assets/background.jpg);
+    background-repeat: no-repeat;
+    background-size: cover;
+    color: aliceblue;
+}
+header a {
+    text-decoration: none;
+    color: aliceblue;
+    font-size: larger;
+    font-weight: bold;
+}
+ul {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+li {
+    list-style: none;
+    color: aliceblue;
+}
+a:hover {
+    text-decoration: underline;
+    text-decoration-thickness: calc(2px);
+    color:#FF5C00;
+}
+.ul-wrapper {
+    padding: 10px;
+    border-radius: 30px;
+    border-color: #FF5C00;
+    border-style: solid;
+}
+>>>>>>> 684e05aaf3c30168d79172643eb459a9f1dfb4ad
