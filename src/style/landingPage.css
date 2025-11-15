@@ -1,0 +1,247 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;900&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+
+
+.LandingPage {
+  width: 100%;
+  min-height: 100vh;
+
+  background: 
+    linear-gradient(rgba(0, 0, 0, 0.542)),
+    url('background.jpg') no-repeat center center fixed;
+
+  background-size: cover;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+
+
+.LandingPage-container {
+  width: 100%;
+  max-width: 1000px;
+  padding: 60px 20px;
+  text-align: center;
+  color: #fff;
+}
+
+.main-logo {
+  width: 220px;
+  height: 70px;
+  margin: 25px auto 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: linear-gradient(145deg, #000 0%, #1a1a1a 50%, #2b2b2b 100%);
+  border: 2px solid #ff6b00;
+  border-radius: 12px;
+  box-shadow: 0 0 18px rgba(255, 107, 0, 0.2);
+  overflow: hidden;
+}
+
+
+.logo-img {
+  height: 100px;         
+  width: auto;          
+  object-fit: contain;
+  display: block;
+}
+
+
+
+
+h1 {
+  font-size: 50px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  line-height: 1.2;
+  margin-bottom: 20px;
+  
+}
+
+h1 span {
+  color: #ff6b00;
+  font-style: italic;
+}
+
+.hero-text span{
+  color: #ff6b00;
+  font-style: italic;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.hero-text {
+  width: 70%;
+  margin: 0 auto 40px;
+  line-height: 1.6;
+  color: #ccc;
+  font-size: 1rem;
+  font-weight: 200;
+  
+
+}
+
+
+.short-line,
+.long-line,
+.longer-line {
+  height: 2px;
+  background-color: #ffffff;
+  margin: 12px auto;
+  opacity: 0.9;
+  box-shadow: #040404;
+}
+
+.short-line { width: 220px; }
+.long-line { width: 480px; }
+.longer-line { width: 900px; margin-top: 50px; }
+
+
+.information-section {
+  background-color: #000;
+  border-top: 2px solid #ff6b00;
+  border-radius: 70px 70px;
+  margin-top: 50px;
+  padding: 80px 20px 100px;
+  width: 100%;
+  box-shadow: 0 -10px 25px rgba(141, 64, 10, 0.551);
+}
+
+h1,.hero-text{
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.6); 
+}
+
+
+.logo-line-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 25px;
+  margin: 50px 0;
+}
+
+.shorter-line {
+  height: 2px;
+  width: 60px;
+  background-color: #ff6b00;
+  border-radius: 2px;
+}
+
+.info-logo {
+  width: 70px;
+  height: 70px;
+  border: 2px solid #ff6b00;
+  border-radius: 50%;
+  background-color: #000;
+  object-fit: contain;
+  padding: 10px;
+}
+
+
+.info-section {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 40px;
+  margin-top: 50px;
+}
+
+
+.text-box {
+  border: 1px solid #ff6b00;
+  border-radius: 10px;
+  padding: 25px;
+  max-width: 400px;
+  text-align: left;
+  background-color: #121212;
+  box-shadow: 0 0 15px rgba(255, 107, 0, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.text-box:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0 25px rgba(255, 107, 0, 0.3);
+}
+
+.text-box h3 {
+  color: #ff6b00;
+  margin-bottom: 10px;
+}
+
+.text-box h4 {
+  color: #ff9c33;
+  margin-top: 15px;
+  margin-bottom: 5px;
+}
+
+.text-box p {
+  color: #ccc;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.text-box ul {
+  list-style-type: disc;
+  padding-left: 25px;
+  margin: 15px 0;
+  color: #ccc;
+}
+
+
+.left-image,
+.right-image {
+  border: 1px solid #ff6b00;
+  border-radius: 8px;
+  object-fit: cover;
+  width: 450px;
+  height: auto;
+  box-shadow: 0 0 12px rgba(255, 107, 0, 0.2);
+}
+
+.cta-button {
+  display: inline-block;
+  background-color: #ff6b00;
+  color: #fff;
+  padding: 14px 50px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin: 5px auto 0;   
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.3);
+  
+}
+
+.cta-button:hover {
+  background-color: #ffa04d;
+  transform: scale(1.08);
+  box-shadow: 0 0 25px rgba(0, 0, 0, 0.5);
+}
+
+
+
+.footer-text {
+  margin-top: 0px;
+  font-size: 1rem;
+  color: #bbb;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+.LandingPage p,
+.information-section p{
+  text-align: justify;
+}

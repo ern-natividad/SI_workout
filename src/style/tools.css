@@ -1,0 +1,100 @@
+.tools-wrapper {
+  min-height: 100vh;
+  width: 100%;
+  background: url("background.jpg") center/cover no-repeat fixed;
+  display: flex;
+  justify-content: center;
+  padding-top: 100px;
+}
+
+.tools-overlay {
+  width: 100%;
+  max-width: 1200px;
+  text-align: center;
+  padding: 20px;
+}
+
+.tools-title {
+  font-size: 3rem;
+  color: #ff6b00;
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.tools-subtitle {
+  color: #ddd;
+  margin-bottom: 50px;
+  font-size: 1.1rem;
+}
+
+.tools-container {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+
+.tool-card {
+  width: 320px;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 30px;
+  border-radius: 15px;
+  border: 2px solid #ff6b00;
+  box-shadow: 0 0 25px rgba(255, 107, 0, 0.3);
+  transition: 0.3s ease;
+}
+
+.tool-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 0 35px rgba(255, 107, 0, 0.6);
+}
+
+.tool-icon img {
+  width: 60px;
+  height: 60px;
+  filter: none !important;
+  box-shadow: none !important;
+  margin-bottom: 10px;
+}
+
+.tool-name {
+  font-size: 1.4rem;
+  color: white;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.tool-desc {
+  color: #ccc;
+  font-size: 0.95rem;
+  margin-bottom: 25px;
+}
+
+.tool-btn {
+  width: 100%;
+  display: inline-block;
+  padding: 12px;
+  background: #ff6b00;
+  color: black;
+  font-weight: bold;
+  border-radius: 10px;
+  transition: 0.3s;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 1.05rem;
+}
+
+.tool-btn:hover {
+  background: #ffa04d;
+  box-shadow: 0 0 10px #ff6b00;
+}
+
+
+.tool-img {
+  width: 70px;
+  height: 70px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px #ff6b00aa);
+}
+
+

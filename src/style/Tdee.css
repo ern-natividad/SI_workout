@@ -1,0 +1,147 @@
+
+.tdee-wrapper {
+  background: url("/background.jpg") center/cover fixed;
+  min-height: 100vh;
+  padding: 60px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+
+.tdee-container {
+  background: rgba(0, 0, 0, 0.75);
+  border: 2px solid #ff6b00;
+  border-radius: 16px;
+  padding: 40px;
+  width: 100%;
+  max-width: 650px;
+  box-shadow: 0 0 20px rgba(255, 107, 0, 0.3);
+  color: white;
+  text-align: center;
+  margin-top: 50px;
+}
+
+
+.tdee-title {
+  font-size: 42px;
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+.tdee-title::after {
+  content: "";
+  display: block;
+  width: 120px;
+  height: 4px;
+  margin: 10px auto;
+  background: #ff6b00;
+  border-radius: 2px;
+}
+
+
+.tdee-desc {
+  font-size: 15px;
+  color: #ccc;
+  margin-bottom: 20px;
+}
+.tdee-desc span {
+  color: #ff6b00;
+  font-weight: 700;
+}
+
+
+.tdee-error {
+  background: rgba(255, 0, 0, 0.2);
+  padding: 12px;
+  border-left: 4px solid red;
+  margin-bottom: 20px;
+  border-radius: 6px;
+}
+
+.tdee-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tdee-row {
+  display: flex;
+  gap: 20px;
+}
+
+.tdee-field {
+  flex: 1;
+  text-align: left;
+}
+
+.tdee-field.full {
+  width: 100%;
+}
+
+.tdee-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: #ff6b00;
+  font-weight: 600;
+}
+
+.tdee-field input,
+.tdee-field select {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  background: #141414;
+  border: 1px solid #555;
+  color: white;
+  font-size: 15px;
+}
+
+.tdee-field input:focus,
+.tdee-field select:focus {
+  border-color: #ff6b00;
+  box-shadow: 0 0 8px #ff6b00;
+}
+
+
+.tdee-btn {
+  background: #ff6b00;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  color: black;
+}
+.tdee-btn:hover {
+  background: #ff8e33;
+  transform: scale(1.03);
+}
+
+
+.tdee-results {
+  margin-top: 35px;
+}
+
+.result-box {
+  background: rgba(255, 107, 0, 0.12);
+  border: 1px solid #ff6b00;
+  padding: 12px 20px;
+  border-radius: 10px;
+  margin: 12px 0;
+  display: flex;
+  justify-content: space-between;
+  font-size: 18px;
+}
+
+.result-box strong {
+  font-size: 22px;
+}
+
+.note {
+  font-size: 14px;
+  color: #aaa;
+  margin-top: 15px;
+  font-style: italic;
+}
