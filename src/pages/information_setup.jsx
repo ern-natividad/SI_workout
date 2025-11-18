@@ -1,15 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "../style/information_setup.css";
 import { useNavigate } from "react-router-dom";
+import { fetchData, excerciseOptions } from "../utils/fetchData";
 
 const InformationSetup = () => {
   const navigate = useNavigate();
 
   // Step navigation
   const [step, setStep] = useState(1);
-
-//supposed to be kinuha ko to from ern and I'm not sure here kay gi 
-// ai ko lang, adjust nalang if ano then re design niyo saakin if ano man
 
   const [formData, setFormData] = useState({
     height: "",
@@ -18,25 +16,105 @@ const InformationSetup = () => {
     gender: "Male",
   });
 
-  // Handle input change
+  // Equipment state
+  const [equipmentList, setEquipmentList] = useState([]);
+  const [selectedEquipment, setSelectedEquipment] = useState([]);
+
+  // Muscle groups state
+  const [targetList, setTargetList] = useState([]);
+  const [selectedTargets, setSelectedTargets] = useState([]);
+
+  // Exercises state
+  const [exerciseList, setExerciseList] = useState([]);
+  const [selectedExercises, setSelectedExercises] = useState([]);
+
+  useEffect(() => {
+    const fetchEquipment = async () => {
+      try {
+        const equipmentData = await fetchData('https://exercisedb.p.rapidapi.com/exercises/equipmentList', excerciseOptions);
+        setEquipmentList(equipmentData);
+      } catch (error) {
+        console.error('Error fetching equipment:', error);
+      }
+    };
+    fetchEquipment();
+  }, []);
+
+  useEffect(() => {
+    const fetchTargets = async () => {
+      try {
+        const targetData = await fetchData('https://exercisedb.p.rapidapi.com/exercises/targetList', excerciseOptions);
+        setTargetList(targetData);
+      } catch (error) {
+        console.error('Error fetching targets:', error);
+      }
+    };
+    fetchTargets();
+  }, []);
+
+  useEffect(() => {
+    const fetchExercises = async () => {
+      if (selectedEquipment.length === 0 && selectedTargets.length === 0) return;
+      try {
+        let exercises = [];
+        for (const equipment of selectedEquipment) {
+          const equipmentExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/equipment/${equipment}`, excerciseOptions);
+          exercises = [...exercises, ...equipmentExercises];
+        }
+        for (const target of selectedTargets) {
+          const targetExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/target/${target}`, excerciseOptions);
+          exercises = [...exercises, ...targetExercises];
+        }
+        const uniqueExercises = exercises.filter((exercise, index, self) =>
+          index === self.findIndex((e) => e.id === exercise.id)
+        );
+        setExerciseList(uniqueExercises);
+      } catch (error) {
+        console.error('Error fetching exercises:', error);
+      }
+    };
+    fetchExercises();
+  }, [selectedEquipment, selectedTargets]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
 
-  // Step navigation functions
+  const handleEquipmentToggle = (equipment) => {
+    setSelectedEquipment(prev =>
+      prev.includes(equipment)
+        ? prev.filter(item => item !== equipment)
+        : [...prev, equipment]
+    );
+  };
+
+  const handleTargetToggle = (target) => {
+    setSelectedTargets(prev =>
+      prev.includes(target)
+        ? prev.filter(item => item !== target)
+        : [...prev, target]
+    );
+  };
+
+  const handleExerciseToggle = (exerciseId) => {
+    setSelectedExercises(prev =>
+      prev.includes(exerciseId)
+        ? prev.filter(item => item !== exerciseId)
+        : [...prev, exerciseId]
+    );
+  };
+
   const nextStep = () => setStep((prev) => Math.min(prev + 1, 4));
   const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
 
-  // Submit final setup
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log("Final data:", formData);
     alert("Profile setup complete!");
-    navigate("/"); 
+    navigate("/homepage");
   };
 
-  // Steps content
   const renderStep = () => {
     switch (step) {
       case 1:
@@ -64,7 +142,6 @@ const InformationSetup = () => {
                 />
               </div>
             </div>
-
             <div className="form-row">
               <div className="form-half">
                 <label>Age</label>
@@ -97,8 +174,14 @@ const InformationSetup = () => {
           <div className="step-placeholder">
             <p>Select your <span>equipment</span> here.</p>
             <div className="equipment-grid">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="equipment-box"></div>
+              {equipmentList.map((equipment, index) => (
+                <div
+                  key={index}
+                  className={`equipment-box ${selectedEquipment.includes(equipment) ? 'selected' : ''}`}
+                  onClick={() => handleEquipmentToggle(equipment)}
+                >
+                  {equipment}
+                </div>
               ))}
             </div>
           </div>
@@ -109,8 +192,14 @@ const InformationSetup = () => {
           <div className="step-placeholder">
             <p>Choose target <span>muscle groups</span>.</p>
             <div className="equipment-grid">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="equipment-box"></div>
+              {targetList.map((target, index) => (
+                <div
+                  key={index}
+                  className={`equipment-box ${selectedTargets.includes(target) ? 'selected' : ''}`}
+                  onClick={() => handleTargetToggle(target)}
+                >
+                  {target}
+                </div>
               ))}
             </div>
           </div>
@@ -120,6 +209,24 @@ const InformationSetup = () => {
         return (
           <div className="step-placeholder">
             <p>Finalize your <span>exercise plan</span>.</p>
+            <div className="exercise-list">
+              {exerciseList.length > 0 ? (
+                exerciseList.map((exercise) => (
+                  <div
+                    key={exercise.id}
+                    className={`exercise-item ${selectedExercises.includes(exercise.id) ? 'selected' : ''}`}
+                    onClick={() => handleExerciseToggle(exercise.id)}
+                  >
+                    <h4>{exercise.name}</h4>
+                    <p>Equipment: {exercise.equipment}</p>
+                    <p>Target: {exercise.target}</p>
+                    <p>Body Part: {exercise.bodyPart}</p>
+                  </div>
+                ))
+              ) : (
+                <p>No exercises found. Please select equipment and muscle groups first.</p>
+              )}
+            </div>
             <button type="submit" className="finish-btn">Finish Setup</button>
           </div>
         );
@@ -132,7 +239,6 @@ const InformationSetup = () => {
   return (
     <div className="info-setup-container">
       <div className="info-card">
-
         {/* Progress Steps */}
         <div className="steps">
           {[1, 2, 3, 4].map((num) => (

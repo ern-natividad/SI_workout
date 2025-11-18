@@ -19,7 +19,7 @@ const HomePage = () => {
             </p>
 
             <div className="hp-hero-cta">
-              <Link to="/workout" className="hp-primary">Create Workout</Link>
+              <Link to="/information_setup" className="hp-primary">Create Workout</Link>
               <Link to="/statistics" className="hp-secondary">View Progress</Link>
             </div>
           </div>

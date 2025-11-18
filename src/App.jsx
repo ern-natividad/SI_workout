@@ -22,12 +22,29 @@ function App() {
   const location = useLocation();
 
   const path = location.pathname.toLowerCase();
+  const [isLoggedIn, setIsLoggedIn] = React.useState(
+    Boolean(localStorage.getItem('userToken'))
+  );
+
+  React.useEffect(() => {
+    const handleStorage = () => setIsLoggedIn(Boolean(localStorage.getItem('userToken')));
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   // Pages that show NO header
   const noHeader = [
     '/loginpage',
-    '/signup',
-    '/information-setup'
+    '/information_setup',
+    '/signup'
+  ];
+  
+  // Pages that show HeaderUser
+  const userHeader = [
+    '/homepage',
+    '/statistics',
+    '/tools',
+    '/workout'
   ];
 
   // Public pages (landing + info pages)
@@ -40,14 +57,12 @@ function App() {
   // SPECIAL CASE → Landing page "/" must match EXACT only
   const isLanding = path === '/';
 
-  // public header if EXACT landing OR other public pages
+  // public header if NOT logged in and (landing OR public pages)
   const showPublicHeader =
-    isLanding || publicHeader.some(route => path.startsWith(route));
+    !isLoggedIn && (isLanding || publicHeader.some(route => path.startsWith(route)));
 
-  // user header if NOT in noHeader AND NOT public
-  const showUserHeader =
-    !noHeader.some(route => path.startsWith(route)) &&
-    !showPublicHeader;
+  // user header when on user pages and logged in
+  const showUserHeader = isLoggedIn && userHeader.some(route => path.startsWith(route));
 
   return (
     <div>
@@ -67,9 +82,10 @@ function App() {
         <Route path="/tdee" element={<TDEECalculator />} />
         <Route path="/tools" element={<Tools />} />
 
-        <Route path="/information-setup" element={<InformationSetup />} />
+        
 
         <Route path="/homepage" element={<HomePage />} />
+        <Route path='/information_setup' element={<InformationSetup />} />
         <Route path="/statistics" element={<StatisticsPage />} />
         <Route path="/workout" element={<WorkoutPage />} />
 

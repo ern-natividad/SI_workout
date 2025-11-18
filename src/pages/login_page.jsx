@@ -1,10 +1,11 @@
 import React from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import useForm from '../components/useForm';
 import '../style/log-in.css'; 
 
 function LoginPage() {
+  const navigate = useNavigate();
   const { 
     formData, 
     handleChange, 
@@ -18,7 +19,7 @@ function LoginPage() {
     password: ''
   });
 
-  const apiUrl = 'http://localhost/workout/react-api/API/login.php';
+  const apiUrl = 'http://localhost/react-api/API/login.php';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,7 +33,8 @@ function LoginPage() {
         setMessage(`Welcome back, ${response.data.username}!`);
         localStorage.setItem('userToken', response.data.token);
         localStorage.setItem('username', response.data.username);
-        resetForm(); 
+        resetForm();
+        navigate('/homepage');
       } else {
         setMessage(`Login failed. ${response.data.message}`);
       }
