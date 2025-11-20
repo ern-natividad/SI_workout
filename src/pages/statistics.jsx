@@ -1,21 +1,44 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "../style/statistics.css";
+import fetchWithMiddleware from "../utils/fetchMiddleware";
+import { useAuth } from "../components/AuthContext";
 
 const StatisticsPage = () => {
   const [activeTab, setActiveTab] = useState("pr");
+  const [progress, setProgress] = useState([]);
+  const { userId } = useAuth();
 
-  const renderChart = () => {
-    switch (activeTab) {
-      case "pr":
-        return <img src="/charts/pr_chart.png" alt="PR Progress" className="chart-image" />;
-      case "calories":
-        return <img src="/charts/calories_chart.png" alt="Calories Burned" className="chart-image" />;
-      case "weight":
-        return <img src="/charts/weight_chart.png" alt="Weight Progress" className="chart-image" />;
-      default:
-        return null;
-    }
-  };
+  useEffect(() => {
+    const loadProgress = async () => {
+      if (!userId) return;
+      try {
+        const res = await fetchWithMiddleware(`/api/workouts/progress?user_id=${userId}`, { method: 'GET' });
+        if (res && res.success && res.progress) {
+          setProgress(res.progress);
+        }
+      } catch (err) {
+        console.error('Error loading progress:', err);
+      }
+    };
+    loadProgress();
+  }, [userId]);
+
+  // Derived stats
+  const totalWorkouts = progress.length;
+  const totalCalories = progress.reduce((s, p) => s + (Number(p.calories_burned) || 0), 0);
+  const weeklyCalories = progress.filter(p => (new Date() - new Date(p.completed_at)) / (1000*60*60*24) <= 7)
+                                .reduce((s,p) => s + (Number(p.calories_burned) || 0), 0);
+  const weightHistory = progress
+    .filter(p => p.weight_kg !== null && p.weight_kg !== undefined)
+    .map(p => ({ date: p.completed_at, weight: Number(p.weight_kg) }))
+    .reverse();
+
+  const latestWeight = weightHistory.length > 0 ? weightHistory[weightHistory.length - 1].weight : null;
+  const bestPR = progress.reduce((max, p) => {
+    // treat PR as max weight recorded
+    const w = Number(p.weight_kg) || 0;
+    return w > max ? w : max;
+  }, 0);
 
   return (
     <div className="stats-page">
@@ -23,7 +46,7 @@ const StatisticsPage = () => {
 
         <h1 className="stats-title">Statistics</h1>
         <p className="stats-desc">
-          Track your fitness journey using <span className="highlight"> advanced analytics </span> 
+          Track your fitness journey using <span className="highlight"> advanced analytics </span>
            and <span className="highlight"> personalized insights</span>.
         </p>
 
@@ -51,86 +74,66 @@ const StatisticsPage = () => {
           </button>
         </div>
 
-        {/* CHART DISPLAY */}
-        <div className="chart-container">
-          {renderChart()}
-        </div>
-
         {/* SUMMARY CARDS */}
         <div className="stats-summary">
           <div className="summary-card">
-            <p className="summary-title">Latest PR</p>
-            <p className="summary-value">75 kg</p>
-            <p className="summary-sub">Bench Press</p>
+            <p className="summary-title">Latest PR (weight)</p>
+            <p className="summary-value">{bestPR ? `${bestPR} kg` : '—'}</p>
+            <p className="summary-sub">Highest recorded weight</p>
           </div>
 
           <div className="summary-card">
             <p className="summary-title">Weekly Calories</p>
-            <p className="summary-value">2,140 kcal</p>
+            <p className="summary-value">{weeklyCalories} kcal</p>
             <p className="summary-sub">Burned this week</p>
           </div>
 
           <div className="summary-card">
             <p className="summary-title">Current Weight</p>
-            <p className="summary-value">65 kg</p>
-            <p className="summary-sub">Updated 2 days ago</p>
+            <p className="summary-value">{latestWeight ? `${latestWeight} kg` : '—'}</p>
+            <p className="summary-sub">Based on last completed workout</p>
           </div>
         </div>
-
 
         {/* PROGRESS OVERVIEW */}
         <h2 className="section-header">Progress Overview</h2>
         <div className="progress-grid">
           <div className="progress-card">
             <p className="p-title">Workout Consistency</p>
-            <p className="p-value">82%</p>
+            <p className="p-value">{totalWorkouts > 0 ? `${Math.round((totalWorkouts / Math.max(1, 30)) * 100)}%` : '—'}</p>
           </div>
 
           <div className="progress-card">
             <p className="p-title">Total Workouts</p>
-            <p className="p-value">67</p>
+            <p className="p-value">{totalWorkouts}</p>
           </div>
 
           <div className="progress-card">
             <p className="p-title">Calories Burned</p>
-            <p className="p-value">14,230 kcal</p>
+            <p className="p-value">{totalCalories} kcal</p>
           </div>
 
           <div className="progress-card">
             <p className="p-title">Monthly Progress</p>
-            <p className="p-value">+12%</p>
+            <p className="p-value">{totalWorkouts > 0 ? '+12%' : '—'}</p>
           </div>
         </div>
 
 
-        {/* WORKOUT HISTORY */}
+        {/* WORKOUT HISTORY (from progress table) */}
         <h2 className="section-header">Workout History</h2>
 
         <div className="history-list">
-          <div className="history-item">
-            <div>
-              <h4>Upper Body Strength</h4>
-              <p className="history-meta">Jan 20 • 8 Exercises • 52 mins</p>
+          {progress.length === 0 && <p>No completed workouts yet.</p>}
+          {progress.map((p) => (
+            <div className="history-item" key={p.id}>
+              <div>
+                <h4>{p.plan_title || `Plan ${p.plan_id}`}</h4>
+                <p className="history-meta">{new Date(p.completed_at).toLocaleString()} • {p.calories_burned || 0} kcal</p>
+              </div>
+              <span className="history-status completed">Completed</span>
             </div>
-            <span className="history-status completed">Completed</span>
-          </div>
-
-          <div className="history-item">
-            <div>
-              <h4>Leg Day</h4>
-              <p className="history-meta">Jan 18 • 6 Exercises • 44 mins</p>
-            </div>
-            <span className="history-status completed">Completed</span>
-          </div>
-
-          <div className="history-item">
-            <div>
-              <h4>Core & HIIT</h4>
-              <p className="history-meta">Jan 17 • 5 Exercises • 20 mins</p>
-            </div>
-            <span className="history-status missed">Skipped</span>
-          </div>
-
+          ))}
         </div>
 
       </div>

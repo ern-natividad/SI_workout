@@ -24,7 +24,7 @@ function SignUp() {
 
   });
 
-  const apiUrl = 'http://localhost:5000/api/auth/signup';
+  const apiUrl = '/api/auth/signup';
 
   const handleSubmit = async (e) => {
     e.preventDefault();

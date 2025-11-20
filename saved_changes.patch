@@ -1,0 +1,4357 @@
+diff --git a/CHANGES_SUMMARY.md b/CHANGES_SUMMARY.md
+new file mode 100644
+index 0000000..8017847
+--- /dev/null
++++ b/CHANGES_SUMMARY.md
+@@ -0,0 +1,124 @@
++# Summary of All Changes Made
++
++## Problem
++The app was not recognizing that the user was already logged in, and the workout plan save was failing with a generic error message.
++
++## Root Causes Identified & Fixed
++
++### 1. **Authentication State Mismatch**
++   - **Issue:** App components were checking `localStorage` for login state, but `AuthContext` was using `sessionStorage`
++   - **Fix:** 
++     - Wrapped entire app with `AuthProvider` in `src/main.jsx`
++     - Updated `src/App.jsx` to use `useAuth()` instead of checking `localStorage`
++     - Made `src/pages/login_page.jsx` call `AuthContext.login()` to sync both sources
++
++### 2. **Missing Auth Token in Requests**
++   - **Issue:** The save request to `saveWorkoutPlan.php` wasn't sending the authentication token
++   - **Fix:**
++     - Created `src/utils/fetchMiddleware.js` to automatically inject `Authorization: Bearer <token>` header
++     - Updated `src/pages/information_setup.jsx` to use `fetchWithMiddleware` for the save request
++
++### 3. **Backend Database Schema Mismatch**
++   - **Issue:** `saveWorkoutPlan.php` was trying to insert a `target` column that doesn't exist in the `workouts` table
++   - **Fix:** Updated PHP to skip the `target` column and only insert columns that exist
++
++### 4. **Poor Error Visibility**
++   - **Issue:** No way to see what error the backend was returning
++   - **Fix:**
++     - Added debug logging to frontend (`src/pages/information_setup.jsx`)
++     - Added error logging to backend (`react-api/API/saveWorkoutPlan.php`)
++     - Enhanced middleware to log non-2xx responses
++
++## Files Modified
++
++### Frontend Changes
++
++#### 1. `src/main.jsx`
++- Added `AuthProvider` wrapper around the entire app
++- Now: `<AuthProvider><App /></AuthProvider>`
++
++#### 2. `src/App.jsx`
++- Replaced `localStorage` login state check with `useAuth()`
++- Now reads `isAuthenticated` from context instead of `userToken` localStorage
++
++#### 3. `src/components/AuthContext.jsx`
++- Added `logout()` function for manual logout
++- Removed demo auto-login (was forcing user 1 to always be logged in)
++- Added listener for global `auth-logout` events (fired by middleware on 401)
++- Added debug logging for login/initialization
++
++#### 4. `src/pages/login_page.jsx`
++- Imported `useAuth` hook
++- Now calls `login(user_id, response.data.token)` after successful API response
++- Removed localStorage writes (context now handles auth state)
++
++#### 5. `src/pages/information_setup.jsx`
++- Imported `useAuth` to get authenticated user ID
++- Imported `fetchWithMiddleware` for authenticated save requests
++- Changed save request from raw `fetch()` to `fetchWithMiddleware()`
++- Added debug logs to show `planData` being sent and response received
++
++#### 6. `src/utils/fetchMiddleware.js` (NEW FILE)
++- Lightweight fetch wrapper that:
++  - Reads `authToken` from `sessionStorage`
++  - Injects `Authorization: Bearer <token>` header
++  - Handles 401 responses by clearing session and dispatching `auth-logout` event
++  - Logs non-2xx responses for debugging
++
++#### 7. `src/utils/fetchData.jsx`
++- Reverted to original pure implementation (removed middleware usage)
++- Used only for RapidAPI calls that need specific headers, not for authenticated backend requests
++
++### Backend Changes
++
++#### 1. `react-api/API/saveWorkoutPlan.php`
++- Fixed SQL: removed `target` parameter from INSERT statement (column doesn't exist)
++- Added error logging: `error_log('saveWorkoutPlan received: ' . json_encode($data));`
++- Added error logging for exceptions: `error_log('saveWorkoutPlan error: ' . $e->getMessage());`
++- Better error responses with more specific messages
++
++## Auth Flow After Changes
++
++1. **User logs in:**
++   - `login_page.jsx` → calls API → receives `token` and `user_id`
++   - Calls `AuthContext.login(user_id, token)`
++   - `AuthContext` sets `sessionStorage.authToken` + `sessionStorage.userId`
++   - `AuthContext` updates React state → UI re-renders with `isAuthenticated = true`
++
++2. **User navigates around:**
++   - `App.jsx` reads `useAuth().isAuthenticated` → shows `HeaderUser` on authenticated pages
++   - `information_setup.jsx` reads `useAuth().userId` → knows the user is logged in
++
++3. **User saves workout:**
++   - `information_setup.jsx` calls `fetchWithMiddleware()`
++   - Middleware reads `sessionStorage.authToken` and injects `Authorization` header
++   - Backend receives request with token and validates
++   - Success: returns plan ID, frontend redirects to homepage
++   - Failure: returns error message, frontend shows alert with specific reason
++
++4. **Token expires (401):**
++   - Backend returns 401
++   - Middleware catches 401, clears sessionStorage, dispatches `auth-logout` event
++   - `AuthContext` listener receives event, calls `logout()`
++   - `logout()` clears context state and redirects to login page
++
++## What to Test
++
++1. **Login workflow:**
++   - Open browser DevTools → Application → Session Storage
++   - Log in and verify `authToken` and `userId` appear
++   - Should see `AuthContext: login()` debug message in console
++
++2. **Information setup save:**
++   - Select equipment, muscles, exercises
++   - Click "Finish Setup"
++   - Should save and redirect to homepage
++   - Network tab should show POST to `saveWorkoutPlan.php` with `Authorization: Bearer` header
++
++3. **Error handling:**
++   - Try saving with no exercises selected → should show "exercises are required"
++   - Should see specific error message from backend in alert
++
++## Created Documentation
++
++- `DEBUGGING_GUIDE.md` - Step-by-step guide to debug save failures and verify setup
+diff --git a/DEBUGGING_GUIDE.md b/DEBUGGING_GUIDE.md
+new file mode 100644
+index 0000000..52f8a89
+--- /dev/null
++++ b/DEBUGGING_GUIDE.md
+@@ -0,0 +1,146 @@
++# Debugging Guide: Workout Plan Save Issue
++
++## Summary of Changes Made
++
++1. **Frontend Auth Flow Fixed**
++   - `AuthContext` now uses `sessionStorage` for login state
++   - `fetchMiddleware` injects `Authorization: Bearer <token>` header
++   - App wrapped with `AuthProvider` in `main.jsx`
++   - Login page now calls `AuthContext.login()` instead of using only `localStorage`
++
++2. **Backend Compatibility Fixed**
++   - `saveWorkoutPlan.php` now handles missing `target` column in `workouts` table
++   - Added better error logging and response messages
++
++3. **Error Logging Added**
++   - Frontend logs `planData`, `saveWorkoutPlan result`, and errors to console
++   - Backend logs incoming requests and errors to server error log
++
++## Step-by-Step Testing
++
++### Step 1: Verify Setup
++1. Ensure MySQL/MariaDB is running with `workout_app` database
++2. Ensure Apache/PHP is running on `http://localhost/react-api/`
++3. Ensure Vite dev server is running on `http://localhost:5174`
++
++### Step 2: Open Browser DevTools
++- Press **F12** to open DevTools
++- Go to **Console** tab (you'll see debug logs here)
++- Go to **Network** tab (you'll see API requests here)
++- Go to **Application → Session Storage** (to verify login tokens)
++
++### Step 3: Log In
++1. Navigate to http://localhost:5174
++2. Go to Login page (should redirect automatically)
++3. Enter credentials:
++   - Email: `ernnatividad10@gmail.com`
++   - Password: (whatever was set when the account was created)
++
++4. **Watch the Console for:**
++   ```
++   AuthContext: login() { id: 3, token: "..." }
++   ```
++   This confirms the context received the login.
++
++5. **Check Session Storage:**
++   - Should have `authToken` (the token from the login response)
++   - Should have `userId` (should be `3` for the demo account)
++
++### Step 4: Go to Information Setup
++1. After successful login, navigate to `/information_setup`
++2. Select equipment, muscles, and exercises
++3. When ready, click "Finish Setup" button
++
++### Step 5: Monitor the Save Request
++**In the Console, watch for:**
++```
++Sending planData: {
++  user_id: 3,
++  title: "My Workout Plan",
++  goal: "Custom workout plan",
++  exercises: [ { name: "...", equipment: "...", bodyPart: "...", target: "..." }, ... ]
++}
++```
++
++**In the Network tab:**
++- Find the request to `saveWorkoutPlan.php`
++- Check **Request Headers:**
++  - Should include `Authorization: Bearer <token>`
++  - Should include `Content-Type: application/json`
++- Check **Request Body:**
++  - Should match the `planData` from the console
++- Check **Response:**
++  - Status should be `200` (success) or `400` (bad request)
++  - Body should show `{"success": true/false, "message": "...", "plan_id": ...}`
++
++**If the request fails:**
++```
++saveWorkoutPlan failed: <error message>
++```
++This error message comes from the backend response.
++
++### Step 6: Common Failure Scenarios
++
++#### Scenario A: "User ID and exercises are required"
++- **Check:** Did you select any exercises before clicking "Finish Setup"?
++- **Solution:** Select at least one exercise before saving
++
++#### Scenario B: "Failed to create workout plan"
++- **Check:** Is the `user_id` valid? (should be `3` for demo account)
++- **Check:** Does a user with id `3` exist in the `users` table?
++- **Solution:** Verify the account exists in MySQL
++
++#### Scenario C: "Failed to add exercise"
++- **Check:** Are the `workouts` table columns correct?
++- **Run in MySQL:**
++  ```sql
++  DESC workouts;
++  ```
++- **Expected columns:** `id`, `category_id`, `name`, `description`, `equipment`, `muscle_group`, `difficulty`
++
++#### Scenario D: Authorization Header Missing
++- **Check:** Open DevTools → Network → saveWorkoutPlan.php request
++- **Check Request Headers for:** `Authorization: Bearer ...`
++- **If missing:** 
++  - Check Session Storage for `authToken`
++  - Verify `AuthContext.login()` was called (check console log)
++  - Restart the browser (clear session)
++
++#### Scenario E: CORS Error
++- **Check:** Browser console for CORS error
++- **Solution:** Verify the PHP files have these headers:
++  ```php
++  header('Access-Control-Allow-Origin: *');
++  header('Access-Control-Allow-Methods: POST, OPTIONS');
++  header('Access-Control-Allow-Headers: Content-Type, Authorization');
++  ```
++
++### Step 7: Check Backend Logs
++If the issue persists, check the PHP error log:
++- On Windows with Apache: Check `C:\xampp\apache\logs\error.log` (or equivalent)
++- Or check `php://stderr` output
++
++The `saveWorkoutPlan.php` now logs:
++- Incoming request data: `error_log('saveWorkoutPlan received: ' . json_encode($data));`
++- Any errors: `error_log('saveWorkoutPlan error: ' . $e->getMessage());`
++
++## Quick Checklist
++
++- [ ] MySQL/Apache/Vite all running
++- [ ] Can log in successfully (see `AuthContext: login()` in console)
++- [ ] Session Storage has `authToken` and `userId` after login
++- [ ] Select exercises and click "Finish Setup"
++- [ ] Check Network tab for `saveWorkoutPlan.php` request
++- [ ] Request has `Authorization: Bearer` header
++- [ ] Response shows `{"success": true}` or specific error message
++
++## If Still Stuck
++
++Provide the following information:
++1. **Console output** when you click "Finish Setup" (paste screenshot or text)
++2. **Network tab** for the `saveWorkoutPlan.php` request:
++   - Request Headers (especially `Authorization`)
++   - Request Body
++   - Response (full JSON)
++3. **Session Storage** contents after login (keys and values)
++4. **PHP error log** contents (from your server's error log file)
+diff --git a/react-api/API/db_connect.php b/react-api/API/db_connect.php
+new file mode 100644
+index 0000000..eacad12
+--- /dev/null
++++ b/react-api/API/db_connect.php
+@@ -0,0 +1,22 @@
++<?php
++$host = "localhost";
++$user = "root"; // Default XAMPP user
++$password = ""; // Default XAMPP password (often empty)
++$dbname = "workout_app"; // Your database name
++
++// Create connection
++$conn = new mysqli($host, $user, $password, $dbname);
++
++// Check connection
++if ($conn->connect_error) {
++    die("Connection failed: " . $conn->connect_error);
++}
++// Set headers to allow Cross-Origin Resource Sharing (CORS) from your React app
++header("Access-Control-Allow-Origin: *"); 
++header("Content-Type: application/json");
++header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
++header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
++
++// Remove the following line when you want to stop outputting connection status
++// echo json_encode(["status" => "Database connected successfully"]);
++?>
+\ No newline at end of file
+diff --git a/react-api/API/getPlanExercises.php b/react-api/API/getPlanExercises.php
+new file mode 100644
+index 0000000..9c7d211
+--- /dev/null
++++ b/react-api/API/getPlanExercises.php
+@@ -0,0 +1,53 @@
++<?php
++header('Content-Type: application/json');
++header('Access-Control-Allow-Origin: *');
++header('Access-Control-Allow-Methods: GET, OPTIONS');
++header('Access-Control-Allow-Headers: Content-Type, Authorization');
++
++if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
++    http_response_code(200);
++    exit(0);
++}
++
++require_once 'db_connect.php';
++
++$response = ['success' => false, 'message' => '', 'data' => []];
++
++try {
++    if (!isset($_GET['plan_id'])) {
++        throw new Exception('Plan ID is required');
++    }
++
++    $planId = intval($_GET['plan_id']);
++
++    // Fetch all exercises for the workout plan
++    $stmt = $conn->prepare("
++        SELECT w.id, w.name, w.equipment, w.muscle_group as bodyPart, w.difficulty,
++               pw.sets, pw.reps, pw.day_of_week
++        FROM plan_workouts pw
++        JOIN workouts w ON pw.workout_id = w.id
++        WHERE pw.plan_id = ?
++        ORDER BY pw.id ASC
++    ");
++    
++    $stmt->bind_param("i", $planId);
++    $stmt->execute();
++    $result = $stmt->get_result();
++
++    $exercises = [];
++    while ($row = $result->fetch_assoc()) {
++        $exercises[] = $row;
++    }
++    $stmt->close();
++
++    $response['success'] = true;
++    $response['message'] = 'Exercises retrieved successfully';
++    $response['data'] = $exercises;
++
++} catch (Exception $e) {
++    $response['message'] = $e->getMessage();
++    http_response_code(400);
++}
++
++echo json_encode($response);
++?>
+diff --git a/react-api/API/getWorkoutPlans.php b/react-api/API/getWorkoutPlans.php
+new file mode 100644
+index 0000000..913c787
+--- /dev/null
++++ b/react-api/API/getWorkoutPlans.php
+@@ -0,0 +1,51 @@
++<?php
++header('Content-Type: application/json');
++header('Access-Control-Allow-Origin: *');
++header('Access-Control-Allow-Methods: GET, OPTIONS');
++header('Access-Control-Allow-Headers: Content-Type, Authorization');
++
++if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
++    http_response_code(200);
++    exit(0);
++}
++
++require_once 'db_connect.php';
++
++$response = ['success' => false, 'message' => '', 'data' => []];
++
++try {
++    if (!isset($_GET['user_id'])) {
++        throw new Exception('User ID is required');
++    }
++
++    $userId = intval($_GET['user_id']);
++
++    // Fetch all workout plans for the user
++    $stmt = $conn->prepare("
++        SELECT id, title, goal, created_at 
++        FROM workout_plans 
++        WHERE user_id = ? 
++        ORDER BY created_at DESC
++    ");
++    
++    $stmt->bind_param("i", $userId);
++    $stmt->execute();
++    $result = $stmt->get_result();
++
++    $plans = [];
++    while ($row = $result->fetch_assoc()) {
++        $plans[] = $row;
++    }
++    $stmt->close();
++
++    $response['success'] = true;
++    $response['message'] = 'Workout plans retrieved successfully';
++    $response['data'] = $plans;
++
++} catch (Exception $e) {
++    $response['message'] = $e->getMessage();
++    http_response_code(400);
++}
++
++echo json_encode($response);
++?>
+diff --git a/react-api/API/login.php b/react-api/API/login.php
+new file mode 100644
+index 0000000..5a89693
+--- /dev/null
++++ b/react-api/API/login.php
+@@ -0,0 +1,70 @@
++<?php
++// Include the database connection setup
++include 'db_connect.php'; 
++
++// Ensure CORS headers are set with Authorization support
++header('Access-Control-Allow-Origin: *');
++header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
++header('Access-Control-Allow-Headers: Content-Type, Authorization');
++header('Content-Type: application/json');
++
++// Handle preflight OPTIONS request
++if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
++    http_response_code(200);
++    exit(0);
++}
++
++// 1. Get the JSON data sent from the React app
++$data = json_decode(file_get_contents("php://input"), true);
++
++// Check if email and password are provided
++if (!isset($data['email'], $data['password'])) {
++    http_response_code(400); 
++    echo json_encode(["status" => "error", "message" => "Missing email or password."]);
++    exit();
++}
++
++// Sanitize input
++$email = $conn->real_escape_string($data['email']);
++$password_plain = $data['password']; 
++
++// 2. Prepare the SQL query to fetch user by email
++$stmt = $conn->prepare("SELECT id, username, password FROM workout_app.users WHERE email = ?");
++$stmt->bind_param("s", $email);
++$stmt->execute();
++$result = $stmt->get_result();
++
++if ($result->num_rows === 1) {
++    $user = $result->fetch_assoc();
++    $password_hashed = $user['password'];
++
++    // 3. Verify the password hash
++    if (password_verify($password_plain, $password_hashed)) {
++        // Login successful
++        http_response_code(200); // OK
++        
++        // **In a real application, you would generate a JWT token here.**
++        // For simplicity, we'll return a basic 'token'.
++        $token = bin2hex(random_bytes(16)); // Simple token generation 
++        
++        echo json_encode([
++            "status" => "success", 
++            "message" => "Login successful.", 
++            "username" => $user['username'],
++            "token" => $token,
++            "user_id" => $user['id']
++        ]);
++    } else {
++        // Password does not match
++        http_response_code(401); // Unauthorized
++        echo json_encode(["status" => "error", "message" => "Invalid email or password."]);
++    }
++} else {
++    // No user found with that email
++    http_response_code(401); // Unauthorized
++    echo json_encode(["status" => "error", "message" => "Invalid email or password."]);
++}
++
++$stmt->close();
++$conn->close();
++?>
+\ No newline at end of file
+diff --git a/react-api/API/saveUserData.php b/react-api/API/saveUserData.php
+new file mode 100644
+index 0000000..b1ba663
+--- /dev/null
++++ b/react-api/API/saveUserData.php
+@@ -0,0 +1,104 @@
++<?php
++// Includes the database connection ($conn) and sets CORS headers
++include 'db_connect.php'; 
++
++// --- Response Headers ---
++header("Access-Control-Allow-Origin: *");
++header("Access-Control-Allow-Methods: POST, OPTIONS");
++header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
++header("Content-Type: application/json");
++
++// Handle OPTIONS request for preflight check
++if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
++    http_response_code(200);
++    exit();
++}
++
++// 🛑 Only proceed with POST requests
++if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
++    http_response_code(405); // Method Not Allowed
++    echo json_encode(['success' => false, 'message' => 'Method not allowed. Only POST is accepted.']);
++    exit();
++}
++
++// Get the JSON data from the request body
++$json_data = file_get_contents("php://input");
++$data = json_decode($json_data, true);
++
++// 🔍 Validation and Data Retrieval
++// NOTE: In a real app, you would get the user_id from a session or JWT token, not the POST body.
++// We are expecting a user_id from the React app (or a placeholder for now).
++if ($data === null || 
++    !isset($data['height'], $data['weight'], $data['age'], $data['gender'])) {
++    
++    http_response_code(400); // Bad Request
++    echo json_encode(['success' => false, 'message' => 'Missing required fields (height, weight, age, gender).']);
++    exit();
++}
++
++// --- TODO: REPLACE THIS WITH ACTUAL USER ID RETRIEVAL ---
++// In a real application, you would ensure the user is logged in and retrieve their ID from a JWT or session.
++// For this script to work now, we'll use a placeholder user_id=1.
++$user_id = 1; 
++if (isset($data['user_id'])) {
++    $user_id = (int)$data['user_id'];
++}
++// --------------------------------------------------------
++
++// Sanitize and validate data
++$height = (int)$data['height'];
++$weight = (float)$data['weight'];
++$age    = (int)$data['age'];
++$gender = $conn->real_escape_string($data['gender']); // Gender is fine as a string
++
++// Final sanity check on values
++if ($height <= 0 || $weight <= 0 || $age <= 0 || empty($gender) || $user_id <= 0) {
++    http_response_code(400);
++    echo json_encode(['success' => false, 'message' => 'Invalid values provided for demographic data or user ID.']);
++    exit();
++}
++
++// 6. UPDATE DATA IN MYSQL USING PREPARED STATEMENT
++try {
++    // SQL query to update the existing user's record
++    $sql = "UPDATE users 
++            SET height_cm = ?, weight_kg = ?, age = ?, gender = ? 
++            WHERE id = ?";
++            
++    $stmt = $conn->prepare($sql);
++    
++    // Bind parameters: 'd' for float (weight_kg), 'i' for integer (height, age, id), 's' for string (gender)
++    $stmt->bind_param("diisi", $weight, $height, $age, $gender, $user_id);
++
++    if ($stmt->execute()) {
++        // Check if a row was actually changed
++        if ($stmt->affected_rows > 0) {
++            http_response_code(200);
++            echo json_encode([
++                'success' => true, 
++                'message' => 'User profile updated successfully.',
++                'user_id' => $user_id
++            ]);
++        } else {
++            // This case means the user_id exists but the data sent was identical, or the user_id did not exist.
++             http_response_code(200); // Still 200, as the state is correct, but message reflects no change
++            echo json_encode([
++                'success' => true, 
++                'message' => 'No changes made or user profile not found. User ID: ' . $user_id,
++            ]);
++        }
++    } else {
++        http_response_code(500); 
++        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $stmt->error]);
++    }
++
++    $stmt->close();
++
++} catch (Exception $e) {
++    error_log("SQL Error: " . $e->getMessage());
++    http_response_code(500);
++    echo json_encode(['success' => false, 'message' => 'A server error occurred.']);
++}
++
++$conn->close();
++?>
+\ No newline at end of file
+diff --git a/react-api/API/saveWorkoutPlan.php b/react-api/API/saveWorkoutPlan.php
+new file mode 100644
+index 0000000..9822bfb
+--- /dev/null
++++ b/react-api/API/saveWorkoutPlan.php
+@@ -0,0 +1,150 @@
++<?php
++header('Content-Type: application/json');
++header('Access-Control-Allow-Origin: *');
++header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
++header('Access-Control-Allow-Headers: Content-Type, Authorization');
++
++// Handle preflight OPTIONS request
++if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
++    http_response_code(200);
++    exit(0);
++}
++
++require_once 'db_connect.php';
++
++$data = json_decode(file_get_contents('php://input'), true);
++$response = ['success' => false, 'message' => '', 'debug' => $_ENV['DEBUG'] ?? false];
++
++try {
++    // Log incoming request for debugging
++    error_log('saveWorkoutPlan received: ' . json_encode($data));
++    
++    // Detailed validation
++    if (!isset($data)) {
++        throw new Exception('No data received');
++    }
++    if (!isset($data['user_id'])) {
++        throw new Exception('User ID is missing from request');
++    }
++    if (!isset($data['exercises'])) {
++        throw new Exception('Exercises array is missing from request');
++    }
++    if (empty($data['exercises'])) {
++        throw new Exception('Exercises array is empty');
++    }
++    if (!is_array($data['exercises'])) {
++        throw new Exception('Exercises must be an array');
++    }
++
++    $userId = $data['user_id'];
++    $title = $data['title'] ?? 'My Workout Plan';
++    $goal = $data['goal'] ?? 'Custom workout plan';
++
++    // Ensure a default category exists for exercises (do this BEFORE transaction)
++    $stmt = $conn->prepare("SELECT id FROM categories LIMIT 1");
++    $stmt->execute();
++    $result = $stmt->get_result();
++    
++    $categoryId = null;
++    if ($result->num_rows > 0) {
++        $categoryId = $result->fetch_assoc()['id'];
++    } else {
++        // Create a default category if none exists
++        $stmt = $conn->prepare("INSERT INTO categories (name, description) VALUES ('General', 'General exercises')");
++        if (!$stmt->execute()) {
++            throw new Exception('Failed to create default category: ' . $conn->error);
++        }
++        $categoryId = $conn->insert_id;
++    }
++    $stmt->close();
++    
++    error_log('Using category_id: ' . $categoryId);
++
++    // Start transaction
++    $conn->begin_transaction();
++
++    // 1. Create a new workout plan
++    $stmt = $conn->prepare("INSERT INTO workout_plans (user_id, title, goal) VALUES (?, ?, ?)");
++    $stmt->bind_param("iss", $userId, $title, $goal);
++    
++    if (!$stmt->execute()) {
++        throw new Exception('Failed to create workout plan: ' . $conn->error);
++    }
++    
++    $planId = $conn->insert_id;
++    $stmt->close();
++
++    // 2. Add exercises to the plan
++    foreach ($data['exercises'] as $exercise) {
++        // First, check if the exercise already exists
++        $stmt = $conn->prepare("
++            SELECT id FROM workouts 
++            WHERE name = ? AND equipment = ? AND muscle_group = ?
++        ");
++        $muscleGroup = $exercise['bodyPart'];
++        $stmt->bind_param("sss", 
++            $exercise['name'], 
++            $exercise['equipment'], 
++            $muscleGroup
++        );
++        $stmt->execute();
++        $result = $stmt->get_result();
++        
++        $workoutId = null;
++        if ($result->num_rows > 0) {
++            // Exercise exists, get its ID
++            $workoutId = $result->fetch_assoc()['id'];
++        } else {
++            // Exercise doesn't exist, create it
++            // Note: workouts table doesn't have 'target' column, so we skip it
++            $stmt = $conn->prepare("
++                INSERT INTO workouts (name, equipment, muscle_group, difficulty, category_id)
++                VALUES (?, ?, ?, 'Beginner', ?)
++            ") or die($conn->error);
++            
++            $stmt->bind_param("sssi", 
++                $exercise['name'], 
++                $exercise['equipment'],
++                $muscleGroup,
++                $categoryId
++            );
++            
++            if (!$stmt->execute()) {
++                throw new Exception('Failed to add exercise: ' . $conn->error);
++            }
++            $workoutId = $conn->insert_id;
++        }
++        $stmt->close();
++
++        // Add exercise to plan_workouts
++        $stmt = $conn->prepare("
++            INSERT INTO plan_workouts (plan_id, workout_id, day_of_week, sets, reps)
++            VALUES (?, ?, 'Monday', 3, 10)
++        ") or die($conn->error);
++        
++        $stmt->bind_param("ii", $planId, $workoutId);
++        
++        if (!$stmt->execute()) {
++            throw new Exception('Failed to add exercise to plan: ' . $conn->error);
++        }
++        $stmt->close();
++    }
++
++    // Commit transaction
++    $conn->commit();
++    $response['success'] = true;
++    $response['message'] = 'Workout plan saved successfully';
++    $response['plan_id'] = $planId;
++
++} catch (Exception $e) {
++    // Rollback transaction on error
++    if (isset($conn)) {
++        $conn->rollback();
++    }
++    $response['message'] = $e->getMessage();
++    error_log('saveWorkoutPlan error: ' . $e->getMessage());
++    http_response_code(400);
++}
++
++echo json_encode($response);
++?>
+diff --git a/react-api/API/signup.php b/react-api/API/signup.php
+new file mode 100644
+index 0000000..d4ae48c
+--- /dev/null
++++ b/react-api/API/signup.php
+@@ -0,0 +1,70 @@
++<?php
++// Include the database connection file (assuming it defines $conn)
++include 'db_connect.php'; 
++
++// --- Response Headers for CORS ---
++header("Access-Control-Allow-Origin: *");
++header("Content-Type: application/json");
++header("Access-Control-Allow-Methods: POST, OPTIONS");
++header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
++
++// Handle preflight OPTIONS request (CORS)
++if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
++    exit(0);
++}
++
++// Get post data from the React frontend (JSON format)
++$data = json_decode(file_get_contents("php://input"), true);
++
++// --- 1. Validation: Check only for the 3 required fields ---
++if (!isset($data['username'], $data['email'], $data['password'])) {
++    http_response_code(400); // Bad Request
++    echo json_encode(["status" => "error", "message" => "Missing required fields (username, email, password)."]);
++    exit();
++}
++
++// --- 2. Sanitize Data ---
++$username = $conn->real_escape_string($data['username']);
++$email = $conn->real_escape_string($data['email']);
++$password_plain = $data['password']; 
++// Removed $age, $gender, $height_cm, $weight_kg
++
++// --- 3. Security: Check if email already exists ---
++// NOTE: Assuming your database name is 'workout_app' and table is 'users'
++$check_stmt = $conn->prepare("SELECT id FROM workout_app.users WHERE email = ? LIMIT 1");
++$check_stmt->bind_param("s", $email);
++$check_stmt->execute();
++$check_stmt->store_result();
++
++if ($check_stmt->num_rows > 0) {
++    // Email already in use
++    http_response_code(409); // Conflict
++    echo json_encode(["status" => "error", "message" => "This email is already registered."]);
++    $check_stmt->close();
++    $conn->close();
++    exit();
++}
++$check_stmt->close();
++
++// --- 4. Hash the password for storage ---
++$password_hashed = password_hash($password_plain, PASSWORD_DEFAULT);
++
++// --- 5. Insert New User into Database (CORRECTED SQL) ---
++$stmt = $conn->prepare("INSERT INTO workout_app.users (username, email, password) VALUES (?, ?, ?)");
++
++// 's' for string (3 strings: username, email, hashed password)
++$stmt->bind_param("sss", $username, $email, $password_hashed);
++
++if ($stmt->execute()) {
++    // Success response
++    http_response_code(201); // Created
++    echo json_encode(["status" => "success", "message" => "User registered successfully!", "user_id" => $conn->insert_id]);
++} else {
++    // Error response 
++    http_response_code(500); // Internal Server Error
++    echo json_encode(["status" => "error", "message" => "Registration failed: " . $stmt->error]);
++}
++
++$stmt->close();
++$conn->close();
++?>
+\ No newline at end of file
+diff --git a/server/.env b/server/.env
+new file mode 100644
+index 0000000..bfc1a65
+--- /dev/null
++++ b/server/.env
+@@ -0,0 +1,6 @@
++PORT=5000
++DB_HOST=localhost
++DB_USER=root
++DB_PASSWORD=
++DB_NAME=workout_app
++NODE_ENV=development
+diff --git a/server/config/database.js b/server/config/database.js
+new file mode 100644
+index 0000000..f850948
+--- /dev/null
++++ b/server/config/database.js
+@@ -0,0 +1,16 @@
++import mysql from 'mysql2/promise';
++import dotenv from 'dotenv';
++
++dotenv.config();
++
++const pool = mysql.createPool({
++  host: process.env.DB_HOST,
++  user: process.env.DB_USER,
++  password: process.env.DB_PASSWORD,
++  database: process.env.DB_NAME,
++  waitForConnections: true,
++  connectionLimit: 10,
++  queueLimit: 0
++});
++
++export default pool;
+diff --git a/server/package-lock.json b/server/package-lock.json
+new file mode 100644
+index 0000000..7f27d94
+--- /dev/null
++++ b/server/package-lock.json
+@@ -0,0 +1,1002 @@
++{
++  "name": "si-workout-backend",
++  "version": "1.0.0",
++  "lockfileVersion": 3,
++  "requires": true,
++  "packages": {
++    "": {
++      "name": "si-workout-backend",
++      "version": "1.0.0",
++      "license": "ISC",
++      "dependencies": {
++        "bcryptjs": "^2.4.3",
++        "cors": "^2.8.5",
++        "dotenv": "^16.3.1",
++        "express": "^4.18.2",
++        "mysql2": "^3.6.5"
++      }
++    },
++    "node_modules/accepts": {
++      "version": "1.3.8",
++      "resolved": "https://registry.npmjs.org/accepts/-/accepts-1.3.8.tgz",
++      "integrity": "sha512-PYAthTa2m2VKxuvSD3DPC/Gy+U+sOA1LAuT8mkmRuvw+NACSaeXEQ+NHcVF7rONl6qcaxV3Uuemwawk+7+SJLw==",
++      "license": "MIT",
++      "dependencies": {
++        "mime-types": "~2.1.34",
++        "negotiator": "0.6.3"
++      },
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/array-flatten": {
++      "version": "1.1.1",
++      "resolved": "https://registry.npmjs.org/array-flatten/-/array-flatten-1.1.1.tgz",
++      "integrity": "sha512-PCVAQswWemu6UdxsDFFX/+gVeYqKAod3D3UVm91jHwynguOwAvYPhx8nNlM++NqRcK6CxxpUafjmhIdKiHibqg==",
++      "license": "MIT"
++    },
++    "node_modules/aws-ssl-profiles": {
++      "version": "1.1.2",
++      "resolved": "https://registry.npmjs.org/aws-ssl-profiles/-/aws-ssl-profiles-1.1.2.tgz",
++      "integrity": "sha512-NZKeq9AfyQvEeNlN0zSYAaWrmBffJh3IELMZfRpJVWgrpEbtEpnjvzqBPf+mxoI287JohRDoa+/nsfqqiZmF6g==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 6.0.0"
++      }
++    },
++    "node_modules/bcryptjs": {
++      "version": "2.4.3",
++      "resolved": "https://registry.npmjs.org/bcryptjs/-/bcryptjs-2.4.3.tgz",
++      "integrity": "sha512-V/Hy/X9Vt7f3BbPJEi8BdVFMByHi+jNXrYkW3huaybV/kQ0KJg0Y6PkEMbn+zeT+i+SiKZ/HMqJGIIt4LZDqNQ==",
++      "license": "MIT"
++    },
++    "node_modules/body-parser": {
++      "version": "1.20.3",
++      "resolved": "https://registry.npmjs.org/body-parser/-/body-parser-1.20.3.tgz",
++      "integrity": "sha512-7rAxByjUMqQ3/bHJy7D6OGXvx/MMc4IqBn/X0fcM1QUcAItpZrBEYhWGem+tzXH90c+G01ypMcYJBO9Y30203g==",
++      "license": "MIT",
++      "dependencies": {
++        "bytes": "3.1.2",
++        "content-type": "~1.0.5",
++        "debug": "2.6.9",
++        "depd": "2.0.0",
++        "destroy": "1.2.0",
++        "http-errors": "2.0.0",
++        "iconv-lite": "0.4.24",
++        "on-finished": "2.4.1",
++        "qs": "6.13.0",
++        "raw-body": "2.5.2",
++        "type-is": "~1.6.18",
++        "unpipe": "1.0.0"
++      },
++      "engines": {
++        "node": ">= 0.8",
++        "npm": "1.2.8000 || >= 1.4.16"
++      }
++    },
++    "node_modules/bytes": {
++      "version": "3.1.2",
++      "resolved": "https://registry.npmjs.org/bytes/-/bytes-3.1.2.tgz",
++      "integrity": "sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
++    "node_modules/call-bind-apply-helpers": {
++      "version": "1.0.2",
++      "resolved": "https://registry.npmjs.org/call-bind-apply-helpers/-/call-bind-apply-helpers-1.0.2.tgz",
++      "integrity": "sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==",
++      "license": "MIT",
++      "dependencies": {
++        "es-errors": "^1.3.0",
++        "function-bind": "^1.1.2"
++      },
++      "engines": {
++        "node": ">= 0.4"
++      }
++    },
++    "node_modules/call-bound": {
++      "version": "1.0.4",
++      "resolved": "https://registry.npmjs.org/call-bound/-/call-bound-1.0.4.tgz",
++      "integrity": "sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==",
++      "license": "MIT",
++      "dependencies": {
++        "call-bind-apply-helpers": "^1.0.2",
++        "get-intrinsic": "^1.3.0"
++      },
++      "engines": {
++        "node": ">= 0.4"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
++    "node_modules/content-disposition": {
++      "version": "0.5.4",
++      "resolved": "https://registry.npmjs.org/content-disposition/-/content-disposition-0.5.4.tgz",
++      "integrity": "sha512-FveZTNuGw04cxlAiWbzi6zTAL/lhehaWbTtgluJh4/E95DqMwTmha3KZN1aAWA8cFIhHzMZUvLevkw5Rqk+tSQ==",
++      "license": "MIT",
++      "dependencies": {
++        "safe-buffer": "5.2.1"
++      },
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/content-type": {
++      "version": "1.0.5",
++      "resolved": "https://registry.npmjs.org/content-type/-/content-type-1.0.5.tgz",
++      "integrity": "sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/cookie": {
++      "version": "0.7.1",
++      "resolved": "https://registry.npmjs.org/cookie/-/cookie-0.7.1.tgz",
++      "integrity": "sha512-6DnInpx7SJ2AK3+CTUE/ZM0vWTUboZCegxhC2xiIydHR9jNuTAASBrfEpHhiGOZw/nX51bHt6YQl8jsGo4y/0w==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/cookie-signature": {
++      "version": "1.0.6",
++      "resolved": "https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.0.6.tgz",
++      "integrity": "sha512-QADzlaHc8icV8I7vbaJXJwod9HWYp8uCqf1xa4OfNu1T7JVxQIrUgOWtHdNDtPiywmFbiS12VjotIXLrKM3orQ==",
++      "license": "MIT"
++    },
++    "node_modules/cors": {
++      "version": "2.8.5",
++      "resolved": "https://registry.npmjs.org/cors/-/cors-2.8.5.tgz",
++      "integrity": "sha512-KIHbLJqu73RGr/hnbrO9uBeixNGuvSQjul/jdFvS/KFSIH1hWVd1ng7zOHx+YrEfInLG7q4n6GHQ9cDtxv/P6g==",
++      "license": "MIT",
++      "dependencies": {
++        "object-assign": "^4",
++        "vary": "^1"
++      },
++      "engines": {
++        "node": ">= 0.10"
++      }
++    },
++    "node_modules/debug": {
++      "version": "2.6.9",
++      "resolved": "https://registry.npmjs.org/debug/-/debug-2.6.9.tgz",
++      "integrity": "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==",
++      "license": "MIT",
++      "dependencies": {
++        "ms": "2.0.0"
++      }
++    },
++    "node_modules/denque": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/denque/-/denque-2.1.0.tgz",
++      "integrity": "sha512-HVQE3AAb/pxF8fQAoiqpvg9i3evqug3hoiwakOyZAwJm+6vZehbkYXZ0l4JxS+I3QxM97v5aaRNhj8v5oBhekw==",
++      "license": "Apache-2.0",
++      "engines": {
++        "node": ">=0.10"
++      }
++    },
++    "node_modules/depd": {
++      "version": "2.0.0",
++      "resolved": "https://registry.npmjs.org/depd/-/depd-2.0.0.tgz",
++      "integrity": "sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
++    "node_modules/destroy": {
++      "version": "1.2.0",
++      "resolved": "https://registry.npmjs.org/destroy/-/destroy-1.2.0.tgz",
++      "integrity": "sha512-2sJGJTaXIIaR1w4iJSNoN0hnMY7Gpc/n8D4qSCJw8QqFWXf7cuAgnEHxBpweaVcPevC2l3KpjYCx3NypQQgaJg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.8",
++        "npm": "1.2.8000 || >= 1.4.16"
++      }
++    },
++    "node_modules/dotenv": {
++      "version": "16.6.1",
++      "resolved": "https://registry.npmjs.org/dotenv/-/dotenv-16.6.1.tgz",
++      "integrity": "sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==",
++      "license": "BSD-2-Clause",
++      "engines": {
++        "node": ">=12"
++      },
++      "funding": {
++        "url": "https://dotenvx.com"
++      }
++    },
++    "node_modules/dunder-proto": {
++      "version": "1.0.1",
++      "resolved": "https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz",
++      "integrity": "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==",
++      "license": "MIT",
++      "dependencies": {
++        "call-bind-apply-helpers": "^1.0.1",
++        "es-errors": "^1.3.0",
++        "gopd": "^1.2.0"
++      },
++      "engines": {
++        "node": ">= 0.4"
++      }
++    },
++    "node_modules/ee-first": {
++      "version": "1.1.1",
++      "resolved": "https://registry.npmjs.org/ee-first/-/ee-first-1.1.1.tgz",
++      "integrity": "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==",
++      "license": "MIT"
++    },
++    "node_modules/encodeurl": {
++      "version": "2.0.0",
++      "resolved": "https://registry.npmjs.org/encodeurl/-/encodeurl-2.0.0.tgz",
++      "integrity": "sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
++    "node_modules/es-define-property": {
++      "version": "1.0.1",
++      "resolved": "https://registry.npmjs.org/es-define-property/-/es-define-property-1.0.1.tgz",
++      "integrity": "sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.4"
++      }
++    },
++    "node_modules/es-errors": {
++      "version": "1.3.0",
++      "resolved": "https://registry.npmjs.org/es-errors/-/es-errors-1.3.0.tgz",
++      "integrity": "sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.4"
++      }
++    },
++    "node_modules/es-object-atoms": {
++      "version": "1.1.1",
++      "resolved": "https://registry.npmjs.org/es-object-atoms/-/es-object-atoms-1.1.1.tgz",
++      "integrity": "sha512-FGgH2h8zKNim9ljj7dankFPcICIK9Cp5bm+c2gQSYePhpaG5+esrLODihIorn+Pe6FGJzWhXQotPv73jTaldXA==",
++      "license": "MIT",
++      "dependencies": {
++        "es-errors": "^1.3.0"
++      },
++      "engines": {
++        "node": ">= 0.4"
++      }
++    },
++    "node_modules/escape-html": {
++      "version": "1.0.3",
++      "resolved": "https://registry.npmjs.org/escape-html/-/escape-html-1.0.3.tgz",
++      "integrity": "sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow==",
++      "license": "MIT"
++    },
++    "node_modules/etag": {
++      "version": "1.8.1",
++      "resolved": "https://registry.npmjs.org/etag/-/etag-1.8.1.tgz",
++      "integrity": "sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/express": {
++      "version": "4.21.2",
++      "resolved": "https://registry.npmjs.org/express/-/express-4.21.2.tgz",
++      "integrity": "sha512-28HqgMZAmih1Czt9ny7qr6ek2qddF4FclbMzwhCREB6OFfH+rXAnuNCwo1/wFvrtbgsQDb4kSbX9de9lFbrXnA==",
++      "license": "MIT",
++      "dependencies": {
++        "accepts": "~1.3.8",
++        "array-flatten": "1.1.1",
++        "body-parser": "1.20.3",
++        "content-disposition": "0.5.4",
++        "content-type": "~1.0.4",
++        "cookie": "0.7.1",
++        "cookie-signature": "1.0.6",
++        "debug": "2.6.9",
++        "depd": "2.0.0",
++        "encodeurl": "~2.0.0",
++        "escape-html": "~1.0.3",
++        "etag": "~1.8.1",
++        "finalhandler": "1.3.1",
++        "fresh": "0.5.2",
++        "http-errors": "2.0.0",
++        "merge-descriptors": "1.0.3",
++        "methods": "~1.1.2",
++        "on-finished": "2.4.1",
++        "parseurl": "~1.3.3",
++        "path-to-regexp": "0.1.12",
++        "proxy-addr": "~2.0.7",
++        "qs": "6.13.0",
++        "range-parser": "~1.2.1",
++        "safe-buffer": "5.2.1",
++        "send": "0.19.0",
++        "serve-static": "1.16.2",
++        "setprototypeof": "1.2.0",
++        "statuses": "2.0.1",
++        "type-is": "~1.6.18",
++        "utils-merge": "1.0.1",
++        "vary": "~1.1.2"
++      },
++      "engines": {
++        "node": ">= 0.10.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/express"
++      }
++    },
++    "node_modules/finalhandler": {
++      "version": "1.3.1",
++      "resolved": "https://registry.npmjs.org/finalhandler/-/finalhandler-1.3.1.tgz",
++      "integrity": "sha512-6BN9trH7bp3qvnrRyzsBz+g3lZxTNZTbVO2EV1CS0WIcDbawYVdYvGflME/9QP0h0pYlCDBCTjYa9nZzMDpyxQ==",
++      "license": "MIT",
++      "dependencies": {
++        "debug": "2.6.9",
++        "encodeurl": "~2.0.0",
++        "escape-html": "~1.0.3",
++        "on-finished": "2.4.1",
++        "parseurl": "~1.3.3",
++        "statuses": "2.0.1",
++        "unpipe": "~1.0.0"
++      },
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
++    "node_modules/forwarded": {
++      "version": "0.2.0",
++      "resolved": "https://registry.npmjs.org/forwarded/-/forwarded-0.2.0.tgz",
++      "integrity": "sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/fresh": {
++      "version": "0.5.2",
++      "resolved": "https://registry.npmjs.org/fresh/-/fresh-0.5.2.tgz",
++      "integrity": "sha512-zJ2mQYM18rEFOudeV4GShTGIQ7RbzA7ozbU9I/XBpm7kqgMywgmylMwXHxZJmkVoYkna9d2pVXVXPdYTP9ej8Q==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/function-bind": {
++      "version": "1.1.2",
++      "resolved": "https://registry.npmjs.org/function-bind/-/function-bind-1.1.2.tgz",
++      "integrity": "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==",
++      "license": "MIT",
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
++    "node_modules/generate-function": {
++      "version": "2.3.1",
++      "resolved": "https://registry.npmjs.org/generate-function/-/generate-function-2.3.1.tgz",
++      "integrity": "sha512-eeB5GfMNeevm/GRYq20ShmsaGcmI81kIX2K9XQx5miC8KdHaC6Jm0qQ8ZNeGOi7wYB8OsdxKs+Y2oVuTFuVwKQ==",
++      "license": "MIT",
++      "dependencies": {
++        "is-property": "^1.0.2"
++      }
++    },
++    "node_modules/get-intrinsic": {
++      "version": "1.3.0",
++      "resolved": "https://registry.npmjs.org/get-intrinsic/-/get-intrinsic-1.3.0.tgz",
++      "integrity": "sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==",
++      "license": "MIT",
++      "dependencies": {
++        "call-bind-apply-helpers": "^1.0.2",
++        "es-define-property": "^1.0.1",
++        "es-errors": "^1.3.0",
++        "es-object-atoms": "^1.1.1",
++        "function-bind": "^1.1.2",
++        "get-proto": "^1.0.1",
++        "gopd": "^1.2.0",
++        "has-symbols": "^1.1.0",
++        "hasown": "^2.0.2",
++        "math-intrinsics": "^1.1.0"
++      },
++      "engines": {
++        "node": ">= 0.4"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
++    "node_modules/get-proto": {
++      "version": "1.0.1",
++      "resolved": "https://registry.npmjs.org/get-proto/-/get-proto-1.0.1.tgz",
++      "integrity": "sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g==",
++      "license": "MIT",
++      "dependencies": {
++        "dunder-proto": "^1.0.1",
++        "es-object-atoms": "^1.0.0"
++      },
++      "engines": {
++        "node": ">= 0.4"
++      }
++    },
++    "node_modules/gopd": {
++      "version": "1.2.0",
++      "resolved": "https://registry.npmjs.org/gopd/-/gopd-1.2.0.tgz",
++      "integrity": "sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.4"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
++    "node_modules/has-symbols": {
++      "version": "1.1.0",
++      "resolved": "https://registry.npmjs.org/has-symbols/-/has-symbols-1.1.0.tgz",
++      "integrity": "sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.4"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
++    "node_modules/hasown": {
++      "version": "2.0.2",
++      "resolved": "https://registry.npmjs.org/hasown/-/hasown-2.0.2.tgz",
++      "integrity": "sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==",
++      "license": "MIT",
++      "dependencies": {
++        "function-bind": "^1.1.2"
++      },
++      "engines": {
++        "node": ">= 0.4"
++      }
++    },
++    "node_modules/http-errors": {
++      "version": "2.0.0",
++      "resolved": "https://registry.npmjs.org/http-errors/-/http-errors-2.0.0.tgz",
++      "integrity": "sha512-FtwrG/euBzaEjYeRqOgly7G0qviiXoJWnvEH2Z1plBdXgbyjv34pHTSb9zoeHMyDy33+DWy5Wt9Wo+TURtOYSQ==",
++      "license": "MIT",
++      "dependencies": {
++        "depd": "2.0.0",
++        "inherits": "2.0.4",
++        "setprototypeof": "1.2.0",
++        "statuses": "2.0.1",
++        "toidentifier": "1.0.1"
++      },
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
++    "node_modules/iconv-lite": {
++      "version": "0.4.24",
++      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.24.tgz",
++      "integrity": "sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==",
++      "license": "MIT",
++      "dependencies": {
++        "safer-buffer": ">= 2.1.2 < 3"
++      },
++      "engines": {
++        "node": ">=0.10.0"
++      }
++    },
++    "node_modules/inherits": {
++      "version": "2.0.4",
++      "resolved": "https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz",
++      "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==",
++      "license": "ISC"
++    },
++    "node_modules/ipaddr.js": {
++      "version": "1.9.1",
++      "resolved": "https://registry.npmjs.org/ipaddr.js/-/ipaddr.js-1.9.1.tgz",
++      "integrity": "sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.10"
++      }
++    },
++    "node_modules/is-property": {
++      "version": "1.0.2",
++      "resolved": "https://registry.npmjs.org/is-property/-/is-property-1.0.2.tgz",
++      "integrity": "sha512-Ks/IoX00TtClbGQr4TWXemAnktAQvYB7HzcCxDGqEZU6oCmb2INHuOoKxbtR+HFkmYWBKv/dOZtGRiAjDhj92g==",
++      "license": "MIT"
++    },
++    "node_modules/long": {
++      "version": "5.3.2",
++      "resolved": "https://registry.npmjs.org/long/-/long-5.3.2.tgz",
++      "integrity": "sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==",
++      "license": "Apache-2.0"
++    },
++    "node_modules/lru-cache": {
++      "version": "7.18.3",
++      "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-7.18.3.tgz",
++      "integrity": "sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==",
++      "license": "ISC",
++      "engines": {
++        "node": ">=12"
++      }
++    },
++    "node_modules/lru.min": {
++      "version": "1.1.3",
++      "resolved": "https://registry.npmjs.org/lru.min/-/lru.min-1.1.3.tgz",
++      "integrity": "sha512-Lkk/vx6ak3rYkRR0Nhu4lFUT2VDnQSxBe8Hbl7f36358p6ow8Bnvr8lrLt98H8J1aGxfhbX4Fs5tYg2+FTwr5Q==",
++      "license": "MIT",
++      "engines": {
++        "bun": ">=1.0.0",
++        "deno": ">=1.30.0",
++        "node": ">=8.0.0"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wellwelwel"
++      }
++    },
++    "node_modules/math-intrinsics": {
++      "version": "1.1.0",
++      "resolved": "https://registry.npmjs.org/math-intrinsics/-/math-intrinsics-1.1.0.tgz",
++      "integrity": "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.4"
++      }
++    },
++    "node_modules/media-typer": {
++      "version": "0.3.0",
++      "resolved": "https://registry.npmjs.org/media-typer/-/media-typer-0.3.0.tgz",
++      "integrity": "sha512-dq+qelQ9akHpcOl/gUVRTxVIOkAJ1wR3QAvb4RsVjS8oVoFjDGTc679wJYmUmknUF5HwMLOgb5O+a3KxfWapPQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/merge-descriptors": {
++      "version": "1.0.3",
++      "resolved": "https://registry.npmjs.org/merge-descriptors/-/merge-descriptors-1.0.3.tgz",
++      "integrity": "sha512-gaNvAS7TZ897/rVaZ0nMtAyxNyi/pdbjbAwUpFQpN70GqnVfOiXpeUUMKRBmzXaSQ8DdTX4/0ms62r2K+hE6mQ==",
++      "license": "MIT",
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
++    "node_modules/methods": {
++      "version": "1.1.2",
++      "resolved": "https://registry.npmjs.org/methods/-/methods-1.1.2.tgz",
++      "integrity": "sha512-iclAHeNqNm68zFtnZ0e+1L2yUIdvzNoauKU4WBA3VvH/vPFieF7qfRlwUZU+DA9P9bPXIS90ulxoUoCH23sV2w==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/mime": {
++      "version": "1.6.0",
++      "resolved": "https://registry.npmjs.org/mime/-/mime-1.6.0.tgz",
++      "integrity": "sha512-x0Vn8spI+wuJ1O6S7gnbaQg8Pxh4NNHb7KSINmEWKiPE4RKOplvijn+NkmYmmRgP68mc70j2EbeTFRsrswaQeg==",
++      "license": "MIT",
++      "bin": {
++        "mime": "cli.js"
++      },
++      "engines": {
++        "node": ">=4"
++      }
++    },
++    "node_modules/mime-db": {
++      "version": "1.52.0",
++      "resolved": "https://registry.npmjs.org/mime-db/-/mime-db-1.52.0.tgz",
++      "integrity": "sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/mime-types": {
++      "version": "2.1.35",
++      "resolved": "https://registry.npmjs.org/mime-types/-/mime-types-2.1.35.tgz",
++      "integrity": "sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==",
++      "license": "MIT",
++      "dependencies": {
++        "mime-db": "1.52.0"
++      },
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/ms": {
++      "version": "2.0.0",
++      "resolved": "https://registry.npmjs.org/ms/-/ms-2.0.0.tgz",
++      "integrity": "sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A==",
++      "license": "MIT"
++    },
++    "node_modules/mysql2": {
++      "version": "3.15.3",
++      "resolved": "https://registry.npmjs.org/mysql2/-/mysql2-3.15.3.tgz",
++      "integrity": "sha512-FBrGau0IXmuqg4haEZRBfHNWB5mUARw6hNwPDXXGg0XzVJ50mr/9hb267lvpVMnhZ1FON3qNd4Xfcez1rbFwSg==",
++      "license": "MIT",
++      "dependencies": {
++        "aws-ssl-profiles": "^1.1.1",
++        "denque": "^2.1.0",
++        "generate-function": "^2.3.1",
++        "iconv-lite": "^0.7.0",
++        "long": "^5.2.1",
++        "lru.min": "^1.0.0",
++        "named-placeholders": "^1.1.3",
++        "seq-queue": "^0.0.5",
++        "sqlstring": "^2.3.2"
++      },
++      "engines": {
++        "node": ">= 8.0"
++      }
++    },
++    "node_modules/mysql2/node_modules/iconv-lite": {
++      "version": "0.7.0",
++      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.7.0.tgz",
++      "integrity": "sha512-cf6L2Ds3h57VVmkZe+Pn+5APsT7FpqJtEhhieDCvrE2MK5Qk9MyffgQyuxQTm6BChfeZNtcOLHp9IcWRVcIcBQ==",
++      "license": "MIT",
++      "dependencies": {
++        "safer-buffer": ">= 2.1.2 < 3.0.0"
++      },
++      "engines": {
++        "node": ">=0.10.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/express"
++      }
++    },
++    "node_modules/named-placeholders": {
++      "version": "1.1.3",
++      "resolved": "https://registry.npmjs.org/named-placeholders/-/named-placeholders-1.1.3.tgz",
++      "integrity": "sha512-eLoBxg6wE/rZkJPhU/xRX1WTpkFEwDJEN96oxFrTsqBdbT5ec295Q+CoHrL9IT0DipqKhmGcaZmwOt8OON5x1w==",
++      "license": "MIT",
++      "dependencies": {
++        "lru-cache": "^7.14.1"
++      },
++      "engines": {
++        "node": ">=12.0.0"
++      }
++    },
++    "node_modules/negotiator": {
++      "version": "0.6.3",
++      "resolved": "https://registry.npmjs.org/negotiator/-/negotiator-0.6.3.tgz",
++      "integrity": "sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/object-assign": {
++      "version": "4.1.1",
++      "resolved": "https://registry.npmjs.org/object-assign/-/object-assign-4.1.1.tgz",
++      "integrity": "sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=0.10.0"
++      }
++    },
++    "node_modules/object-inspect": {
++      "version": "1.13.4",
++      "resolved": "https://registry.npmjs.org/object-inspect/-/object-inspect-1.13.4.tgz",
++      "integrity": "sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.4"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
++    "node_modules/on-finished": {
++      "version": "2.4.1",
++      "resolved": "https://registry.npmjs.org/on-finished/-/on-finished-2.4.1.tgz",
++      "integrity": "sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg==",
++      "license": "MIT",
++      "dependencies": {
++        "ee-first": "1.1.1"
++      },
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
++    "node_modules/parseurl": {
++      "version": "1.3.3",
++      "resolved": "https://registry.npmjs.org/parseurl/-/parseurl-1.3.3.tgz",
++      "integrity": "sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
++    "node_modules/path-to-regexp": {
++      "version": "0.1.12",
++      "resolved": "https://registry.npmjs.org/path-to-regexp/-/path-to-regexp-0.1.12.tgz",
++      "integrity": "sha512-RA1GjUVMnvYFxuqovrEqZoxxW5NUZqbwKtYz/Tt7nXerk0LbLblQmrsgdeOxV5SFHf0UDggjS/bSeOZwt1pmEQ==",
++      "license": "MIT"
++    },
++    "node_modules/proxy-addr": {
++      "version": "2.0.7",
++      "resolved": "https://registry.npmjs.org/proxy-addr/-/proxy-addr-2.0.7.tgz",
++      "integrity": "sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg==",
++      "license": "MIT",
++      "dependencies": {
++        "forwarded": "0.2.0",
++        "ipaddr.js": "1.9.1"
++      },
++      "engines": {
++        "node": ">= 0.10"
++      }
++    },
++    "node_modules/qs": {
++      "version": "6.13.0",
++      "resolved": "https://registry.npmjs.org/qs/-/qs-6.13.0.tgz",
++      "integrity": "sha512-+38qI9SOr8tfZ4QmJNplMUxqjbe7LKvvZgWdExBOmd+egZTtjLB67Gu0HRX3u/XOq7UU2Nx6nsjvS16Z9uwfpg==",
++      "license": "BSD-3-Clause",
++      "dependencies": {
++        "side-channel": "^1.0.6"
++      },
++      "engines": {
++        "node": ">=0.6"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
++    "node_modules/range-parser": {
++      "version": "1.2.1",
++      "resolved": "https://registry.npmjs.org/range-parser/-/range-parser-1.2.1.tgz",
++      "integrity": "sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/raw-body": {
++      "version": "2.5.2",
++      "resolved": "https://registry.npmjs.org/raw-body/-/raw-body-2.5.2.tgz",
++      "integrity": "sha512-8zGqypfENjCIqGhgXToC8aB2r7YrBX+AQAfIPs/Mlk+BtPTztOvTS01NRW/3Eh60J+a48lt8qsCzirQ6loCVfA==",
++      "license": "MIT",
++      "dependencies": {
++        "bytes": "3.1.2",
++        "http-errors": "2.0.0",
++        "iconv-lite": "0.4.24",
++        "unpipe": "1.0.0"
++      },
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
++    "node_modules/safe-buffer": {
++      "version": "5.2.1",
++      "resolved": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz",
++      "integrity": "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==",
++      "funding": [
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/feross"
++        },
++        {
++          "type": "patreon",
++          "url": "https://www.patreon.com/feross"
++        },
++        {
++          "type": "consulting",
++          "url": "https://feross.org/support"
++        }
++      ],
++      "license": "MIT"
++    },
++    "node_modules/safer-buffer": {
++      "version": "2.1.2",
++      "resolved": "https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz",
++      "integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==",
++      "license": "MIT"
++    },
++    "node_modules/send": {
++      "version": "0.19.0",
++      "resolved": "https://registry.npmjs.org/send/-/send-0.19.0.tgz",
++      "integrity": "sha512-dW41u5VfLXu8SJh5bwRmyYUbAoSB3c9uQh6L8h/KtsFREPWpbX1lrljJo186Jc4nmci/sGUZ9a0a0J2zgfq2hw==",
++      "license": "MIT",
++      "dependencies": {
++        "debug": "2.6.9",
++        "depd": "2.0.0",
++        "destroy": "1.2.0",
++        "encodeurl": "~1.0.2",
++        "escape-html": "~1.0.3",
++        "etag": "~1.8.1",
++        "fresh": "0.5.2",
++        "http-errors": "2.0.0",
++        "mime": "1.6.0",
++        "ms": "2.1.3",
++        "on-finished": "2.4.1",
++        "range-parser": "~1.2.1",
++        "statuses": "2.0.1"
++      },
++      "engines": {
++        "node": ">= 0.8.0"
++      }
++    },
++    "node_modules/send/node_modules/encodeurl": {
++      "version": "1.0.2",
++      "resolved": "https://registry.npmjs.org/encodeurl/-/encodeurl-1.0.2.tgz",
++      "integrity": "sha512-TPJXq8JqFaVYm2CWmPvnP2Iyo4ZSM7/QKcSmuMLDObfpH5fi7RUGmd/rTDf+rut/saiDiQEeVTNgAmJEdAOx0w==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
++    "node_modules/send/node_modules/ms": {
++      "version": "2.1.3",
++      "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
++      "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
++      "license": "MIT"
++    },
++    "node_modules/seq-queue": {
++      "version": "0.0.5",
++      "resolved": "https://registry.npmjs.org/seq-queue/-/seq-queue-0.0.5.tgz",
++      "integrity": "sha512-hr3Wtp/GZIc/6DAGPDcV4/9WoZhjrkXsi5B/07QgX8tsdc6ilr7BFM6PM6rbdAX1kFSDYeZGLipIZZKyQP0O5Q=="
++    },
++    "node_modules/serve-static": {
++      "version": "1.16.2",
++      "resolved": "https://registry.npmjs.org/serve-static/-/serve-static-1.16.2.tgz",
++      "integrity": "sha512-VqpjJZKadQB/PEbEwvFdO43Ax5dFBZ2UECszz8bQ7pi7wt//PWe1P6MN7eCnjsatYtBT6EuiClbjSWP2WrIoTw==",
++      "license": "MIT",
++      "dependencies": {
++        "encodeurl": "~2.0.0",
++        "escape-html": "~1.0.3",
++        "parseurl": "~1.3.3",
++        "send": "0.19.0"
++      },
++      "engines": {
++        "node": ">= 0.8.0"
++      }
++    },
++    "node_modules/setprototypeof": {
++      "version": "1.2.0",
++      "resolved": "https://registry.npmjs.org/setprototypeof/-/setprototypeof-1.2.0.tgz",
++      "integrity": "sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==",
++      "license": "ISC"
++    },
++    "node_modules/side-channel": {
++      "version": "1.1.0",
++      "resolved": "https://registry.npmjs.org/side-channel/-/side-channel-1.1.0.tgz",
++      "integrity": "sha512-ZX99e6tRweoUXqR+VBrslhda51Nh5MTQwou5tnUDgbtyM0dBgmhEDtWGP/xbKn6hqfPRHujUNwz5fy/wbbhnpw==",
++      "license": "MIT",
++      "dependencies": {
++        "es-errors": "^1.3.0",
++        "object-inspect": "^1.13.3",
++        "side-channel-list": "^1.0.0",
++        "side-channel-map": "^1.0.1",
++        "side-channel-weakmap": "^1.0.2"
++      },
++      "engines": {
++        "node": ">= 0.4"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
++    "node_modules/side-channel-list": {
++      "version": "1.0.0",
++      "resolved": "https://registry.npmjs.org/side-channel-list/-/side-channel-list-1.0.0.tgz",
++      "integrity": "sha512-FCLHtRD/gnpCiCHEiJLOwdmFP+wzCmDEkc9y7NsYxeF4u7Btsn1ZuwgwJGxImImHicJArLP4R0yX4c2KCrMrTA==",
++      "license": "MIT",
++      "dependencies": {
++        "es-errors": "^1.3.0",
++        "object-inspect": "^1.13.3"
++      },
++      "engines": {
++        "node": ">= 0.4"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
++    "node_modules/side-channel-map": {
++      "version": "1.0.1",
++      "resolved": "https://registry.npmjs.org/side-channel-map/-/side-channel-map-1.0.1.tgz",
++      "integrity": "sha512-VCjCNfgMsby3tTdo02nbjtM/ewra6jPHmpThenkTYh8pG9ucZ/1P8So4u4FGBek/BjpOVsDCMoLA/iuBKIFXRA==",
++      "license": "MIT",
++      "dependencies": {
++        "call-bound": "^1.0.2",
++        "es-errors": "^1.3.0",
++        "get-intrinsic": "^1.2.5",
++        "object-inspect": "^1.13.3"
++      },
++      "engines": {
++        "node": ">= 0.4"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
++    "node_modules/side-channel-weakmap": {
++      "version": "1.0.2",
++      "resolved": "https://registry.npmjs.org/side-channel-weakmap/-/side-channel-weakmap-1.0.2.tgz",
++      "integrity": "sha512-WPS/HvHQTYnHisLo9McqBHOJk2FkHO/tlpvldyrnem4aeQp4hai3gythswg6p01oSoTl58rcpiFAjF2br2Ak2A==",
++      "license": "MIT",
++      "dependencies": {
++        "call-bound": "^1.0.2",
++        "es-errors": "^1.3.0",
++        "get-intrinsic": "^1.2.5",
++        "object-inspect": "^1.13.3",
++        "side-channel-map": "^1.0.1"
++      },
++      "engines": {
++        "node": ">= 0.4"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/ljharb"
++      }
++    },
++    "node_modules/sqlstring": {
++      "version": "2.3.3",
++      "resolved": "https://registry.npmjs.org/sqlstring/-/sqlstring-2.3.3.tgz",
++      "integrity": "sha512-qC9iz2FlN7DQl3+wjwn3802RTyjCx7sDvfQEXchwa6CWOx07/WVfh91gBmQ9fahw8snwGEWU3xGzOt4tFyHLxg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/statuses": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/statuses/-/statuses-2.0.1.tgz",
++      "integrity": "sha512-RwNA9Z/7PrK06rYLIzFMlaF+l73iwpzsqRIFgbMLbTcLD6cOao82TaWefPXQvB2fOC4AjuYSEndS7N/mTCbkdQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
++    "node_modules/toidentifier": {
++      "version": "1.0.1",
++      "resolved": "https://registry.npmjs.org/toidentifier/-/toidentifier-1.0.1.tgz",
++      "integrity": "sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=0.6"
++      }
++    },
++    "node_modules/type-is": {
++      "version": "1.6.18",
++      "resolved": "https://registry.npmjs.org/type-is/-/type-is-1.6.18.tgz",
++      "integrity": "sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g==",
++      "license": "MIT",
++      "dependencies": {
++        "media-typer": "0.3.0",
++        "mime-types": "~2.1.24"
++      },
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/unpipe": {
++      "version": "1.0.0",
++      "resolved": "https://registry.npmjs.org/unpipe/-/unpipe-1.0.0.tgz",
++      "integrity": "sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
++    "node_modules/utils-merge": {
++      "version": "1.0.1",
++      "resolved": "https://registry.npmjs.org/utils-merge/-/utils-merge-1.0.1.tgz",
++      "integrity": "sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.4.0"
++      }
++    },
++    "node_modules/vary": {
++      "version": "1.1.2",
++      "resolved": "https://registry.npmjs.org/vary/-/vary-1.1.2.tgz",
++      "integrity": "sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.8"
++      }
++    }
++  }
++}
+diff --git a/server/package.json b/server/package.json
+new file mode 100644
+index 0000000..60a1959
+--- /dev/null
++++ b/server/package.json
+@@ -0,0 +1,22 @@
++{
++  "name": "si-workout-backend",
++  "version": "1.0.0",
++  "description": "Node.js Express backend for SI Workout app",
++  "type": "module",
++  "main": "server.js",
++  "scripts": {
++    "start": "node server.js",
++    "dev": "node --watch server.js",
++    "server": "node server.js"
++  },
++  "keywords": ["workout", "fitness", "express"],
++  "author": "",
++  "license": "ISC",
++  "dependencies": {
++    "express": "^4.18.2",
++    "mysql2": "^3.6.5",
++    "cors": "^2.8.5",
++    "dotenv": "^16.3.1",
++    "bcryptjs": "^2.4.3"
++  }
++}
+diff --git a/server/routes/auth.js b/server/routes/auth.js
+new file mode 100644
+index 0000000..ad62520
+--- /dev/null
++++ b/server/routes/auth.js
+@@ -0,0 +1,115 @@
++import express from 'express';
++import bcrypt from 'bcryptjs';
++import pool from '../config/database.js';
++
++const router = express.Router();
++
++// Register
++router.post('/signup', async (req, res) => {
++  try {
++    const { username, email, password, age, gender, height, weight } = req.body;
++
++    if (!username || !email || !password) {
++      return res.status(400).json({
++        success: false,
++        message: 'Username, email, and password are required'
++      });
++    }
++
++    // Check if user exists
++    const [existingUser] = await pool.query(
++      'SELECT id FROM users WHERE email = ?',
++      [email]
++    );
++
++    if (existingUser.length > 0) {
++      return res.status(400).json({
++        success: false,
++        message: 'User already exists'
++      });
++    }
++
++    // Hash password
++    const hashedPassword = await bcrypt.hash(password, 10);
++
++    // Create user with optional fields
++    const [result] = await pool.query(
++      'INSERT INTO users (username, email, password, age, gender, height_cm, weight_kg) VALUES (?, ?, ?, ?, ?, ?, ?)',
++      [username, email, hashedPassword, age || null, gender || null, height || null, weight || null]
++    );
++
++    res.status(201).json({
++      success: true,
++      message: 'User registered successfully',
++      user_id: result.insertId
++    });
++  } catch (error) {
++    console.error('Signup error:', error);
++    res.status(500).json({
++      success: false,
++      message: error.message
++    });
++  }
++});
++
++// Login
++router.post('/login', async (req, res) => {
++  try {
++    const { email, password } = req.body;
++
++    if (!email || !password) {
++      return res.status(400).json({
++        success: false,
++        message: 'Email and password are required'
++      });
++    }
++
++    // Get user with all details
++    const [users] = await pool.query(
++      'SELECT id, username, password, age, gender, height_cm, weight_kg FROM users WHERE email = ?',
++      [email]
++    );
++
++    if (users.length === 0) {
++      return res.status(401).json({
++        success: false,
++        message: 'Invalid email or password'
++      });
++    }
++
++    const user = users[0];
++
++    // Verify password
++    const isPasswordValid = await bcrypt.compare(password, user.password);
++
++    if (!isPasswordValid) {
++      return res.status(401).json({
++        success: false,
++        message: 'Invalid email or password'
++      });
++    }
++
++    // Generate simple token (in production, use JWT)
++    const token = Buffer.from(`${user.id}:${Date.now()}`).toString('base64');
++
++    res.json({
++      success: true,
++      message: 'Login successful',
++      username: user.username,
++      token: token,
++      user_id: user.id,
++      weight: user.weight_kg,
++      height: user.height_cm,
++      age: user.age,
++      gender: user.gender
++    });
++  } catch (error) {
++    console.error('Login error:', error);
++    res.status(500).json({
++      success: false,
++      message: error.message
++    });
++  }
++});
++
++export default router;
+diff --git a/server/routes/workouts.js b/server/routes/workouts.js
+new file mode 100644
+index 0000000..606ac24
+--- /dev/null
++++ b/server/routes/workouts.js
+@@ -0,0 +1,258 @@
++import express from 'express';
++import pool from '../config/database.js';
++
++const router = express.Router();
++
++// Middleware to verify auth token
++const verifyToken = (req, res, next) => {
++  const authHeader = req.headers.authorization;
++  
++  if (!authHeader || !authHeader.startsWith('Bearer ')) {
++    return res.status(401).json({
++      success: false,
++      message: 'No authorization token'
++    });
++  }
++
++  req.token = authHeader.substring(7);
++  next();
++};
++
++// Get all workout plans for a user
++router.get('/plans', verifyToken, async (req, res) => {
++  try {
++    const userId = req.query.user_id;
++
++    if (!userId) {
++      return res.status(400).json({
++        success: false,
++        message: 'user_id is required'
++      });
++    }
++
++    const [plans] = await pool.query(
++      'SELECT id, title, goal, end_at, created_at FROM workout_plans WHERE user_id = ? ORDER BY created_at DESC',
++      [userId]
++    );
++
++    res.json({
++      success: true,
++      plans: plans
++    });
++  } catch (error) {
++    console.error('Get plans error:', error);
++    res.status(500).json({
++      success: false,
++      message: error.message
++    });
++  }
++});
++
++// Get exercises for a specific plan
++router.get('/exercises', verifyToken, async (req, res) => {
++  try {
++    const planId = req.query.plan_id;
++
++    if (!planId) {
++      return res.status(400).json({
++        success: false,
++        message: 'plan_id is required'
++      });
++    }
++
++    const [exercises] = await pool.query(
++      `SELECT w.id, w.name, w.equipment, w.muscle_group, w.difficulty, 
++              pw.sets, pw.reps, pw.day_of_week
++       FROM plan_workouts pw
++       JOIN workouts w ON pw.workout_id = w.id
++       WHERE pw.plan_id = ?
++       ORDER BY pw.day_of_week`,
++      [planId]
++    );
++
++    res.json({
++      success: true,
++      exercises: exercises
++    });
++  } catch (error) {
++    console.error('Get exercises error:', error);
++    res.status(500).json({
++      success: false,
++      message: error.message
++    });
++  }
++});
++
++// Save a new workout plan
++router.post('/save', verifyToken, async (req, res) => {
++  try {
++    const { user_id, plan_title, goal, exercises } = req.body;
++    
++    console.log('Received workout save request:', {
++      user_id,
++      plan_title,
++      goal,
++      exercisesCount: exercises?.length,
++      fullBody: req.body
++    });
++
++    // Validate each required field
++    const missingFields = [];
++    if (!user_id) missingFields.push('user_id');
++    if (!plan_title) missingFields.push('plan_title');
++    if (!exercises) missingFields.push('exercises');
++    if (exercises && exercises.length === 0) missingFields.push('exercises (empty)');
++
++    if (missingFields.length > 0) {
++      console.error('Missing fields:', missingFields);
++      return res.status(400).json({
++        success: false,
++        message: `Missing required fields: ${missingFields.join(', ')}`
++      });
++    }
++
++    const connection = await pool.getConnection();
++    await connection.beginTransaction();
++
++    try {
++      // Create workout plan
++      const [planResult] = await connection.query(
++        'INSERT INTO workout_plans (user_id, title, goal) VALUES (?, ?, ?)',
++        [user_id, plan_title, goal || 'General']
++      );
++
++      const planId = planResult.insertId;
++
++      // Process each exercise
++      for (const exercise of exercises) {
++        const { name, equipment, bodyPart, difficulty, sets, reps, day_of_week, weight_type } = exercise;
++
++        // Get or create category
++        const categoryName = weight_type === 'bodyweight' ? 'Bodyweight' : 'Weighted';
++        let [categories] = await connection.query(
++          'SELECT id FROM categories WHERE name = ?',
++          [categoryName]
++        );
++
++        let categoryId;
++        if (categories.length === 0) {
++          const [categoryResult] = await connection.query(
++            'INSERT INTO categories (name) VALUES (?)',
++            [categoryName]
++          );
++          categoryId = categoryResult.insertId;
++        } else {
++          categoryId = categories[0].id;
++        }
++
++        // Get or create workout (note: database uses muscle_group, not bodyPart)
++        let [workouts] = await connection.query(
++          'SELECT id FROM workouts WHERE name = ? AND equipment = ?',
++          [name, equipment]
++        );
++
++        let workoutId;
++        if (workouts.length === 0) {
++          const [workoutResult] = await connection.query(
++            'INSERT INTO workouts (name, equipment, muscle_group, difficulty, category_id) VALUES (?, ?, ?, ?, ?)',
++            [name, equipment, bodyPart, difficulty, categoryId]
++          );
++          workoutId = workoutResult.insertId;
++        } else {
++          workoutId = workouts[0].id;
++        }
++
++        // Link to plan
++        await connection.query(
++          'INSERT INTO plan_workouts (plan_id, workout_id, sets, reps, day_of_week) VALUES (?, ?, ?, ?, ?)',
++          [planId, workoutId, sets || 3, reps || 10, day_of_week || 1]
++        );
++      }
++
++      await connection.commit();
++      connection.release();
++
++      res.status(201).json({
++        success: true,
++        message: 'Workout plan saved successfully',
++        plan_id: planId
++      });
++    } catch (error) {
++      await connection.rollback();
++      connection.release();
++      throw error;
++    }
++  } catch (error) {
++    console.error('Save plan error:', error);
++    res.status(500).json({
++      success: false,
++      message: error.message
++    });
++  }
++});
++
++
++// Mark workout as complete and create new plan
++router.post('/complete', verifyToken, async (req, res) => {
++  try {
++    const { user_id, plan_id, completed_exercises, completed_at } = req.body;
++
++    if (!user_id || !plan_id || !completed_exercises) {
++      return res.status(400).json({
++        success: false,
++        message: 'Missing required fields: user_id, plan_id, completed_exercises'
++      });
++    }
++
++    const connection = await pool.getConnection();
++    await connection.beginTransaction();
++
++    try {
++      // Update plan status to completed with end_at timestamp
++      await connection.query(
++        'UPDATE workout_plans SET end_at = ? WHERE id = ?',
++        [completed_at || new Date(), plan_id]
++      );
++
++      // Save exercise progress for each completed exercise
++      for (const exercise of completed_exercises) {
++        const { name, sets_completed } = exercise;
++
++        // Find workout ID from name
++        const [workouts] = await connection.query(
++          'SELECT id FROM workouts WHERE name = ?',
++          [name]
++        );
++
++        if (workouts.length > 0) {
++          await connection.query(
++            'INSERT INTO progress (user_id, workout_id, sets_completed, completed_at) VALUES (?, ?, ?, ?)',
++            [user_id, workouts[0].id, sets_completed, completed_at || new Date()]
++          );
++        }
++      }
++
++      // Do not auto-create a new plan. The user should create new plans manually.
++
++      await connection.commit();
++      connection.release();
++
++      res.json({
++        success: true,
++        message: 'Workout completed and new plan created!'
++      });
++    } catch (error) {
++      await connection.rollback();
++      connection.release();
++      throw error;
++    }
++  } catch (error) {
++    console.error('Complete workout error:', error);
++    res.status(500).json({
++      success: false,
++      message: error.message
++    });
++  }
++});
++
++export default router;
+diff --git a/server/server.js b/server/server.js
+new file mode 100644
+index 0000000..6f4f6ce
+--- /dev/null
++++ b/server/server.js
+@@ -0,0 +1,73 @@
++import express from 'express';
++import cors from 'cors';
++import dotenv from 'dotenv';
++
++// Load environment variables
++dotenv.config();
++
++// Import routes
++import authRoutes from './routes/auth.js';
++import workoutRoutes from './routes/workouts.js';
++import pool from './config/database.js';
++
++const app = express();
++const PORT = process.env.PORT || 5000;
++
++// Middleware
++app.use(cors());
++app.use(express.json());
++
++// Log incoming requests
++app.use((req, res, next) => {
++  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
++  next();
++});
++
++// Routes
++app.use('/api/auth', authRoutes);
++app.use('/api/workouts', workoutRoutes);
++
++// Health check endpoint
++app.get('/api/health', async (req, res) => {
++  try {
++    const connection = await pool.getConnection();
++    await connection.query('SELECT 1');
++    connection.release();
++    res.json({ 
++      status: 'OK', 
++      message: 'Server is running',
++      database: 'Connected to MySQL'
++    });
++  } catch (error) {
++    console.error('Database connection error:', error);
++    res.status(500).json({ 
++      status: 'ERROR', 
++      message: 'Failed to connect to database',
++      error: error.message
++    });
++  }
++});
++
++// Error handling middleware
++app.use((err, req, res, next) => {
++  console.error('Error:', err);
++  res.status(err.status || 500).json({
++    success: false,
++    message: err.message || 'Internal server error'
++  });
++});
++
++// 404 handler
++app.use((req, res) => {
++  res.status(404).json({
++    success: false,
++    message: 'Route not found'
++  });
++});
++
++app.listen(PORT, () => {
++  console.log(`✓ Server running on http://localhost:${PORT}`);
++  console.log(`✓ Environment: ${process.env.NODE_ENV}`);
++});
++
++export default app;
+diff --git a/server/test-connection.js b/server/test-connection.js
+new file mode 100644
+index 0000000..5d38bdc
+--- /dev/null
++++ b/server/test-connection.js
+@@ -0,0 +1,33 @@
++import mysql from 'mysql2/promise';
++import dotenv from 'dotenv';
++
++dotenv.config();
++
++async function testConnection() {
++  try {
++    console.log('Attempting to connect to MySQL...');
++    console.log('Host:', process.env.DB_HOST);
++    console.log('User:', process.env.DB_USER);
++    console.log('Database:', process.env.DB_NAME);
++    
++    const connection = await mysql.createConnection({
++      host: process.env.DB_HOST,
++      user: process.env.DB_USER,
++      password: process.env.DB_PASSWORD,
++      database: process.env.DB_NAME
++    });
++    
++    const [result] = await connection.query('SELECT 1 as test');
++    console.log('✅ Successfully connected to MySQL!');
++    console.log('Test query result:', result);
++    
++    await connection.end();
++    process.exit(0);
++  } catch (error) {
++    console.error('❌ Connection failed:', error.message);
++    console.error('Full error:', error);
++    process.exit(1);
++  }
++}
++
++testConnection();
+diff --git a/src/App.jsx b/src/App.jsx
+index a483614..052a2de 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom';
+ 
+ import Header from './components/Header';
+ import HeaderUser from './components/HeaderUser';
++import { useAuth } from './components/AuthContext';
+ 
+ import LandingPage from './pages/landing_page';
+ import SignUp from './pages/SignUp';
+@@ -22,15 +23,9 @@ function App() {
+   const location = useLocation();
+ 
+   const path = location.pathname.toLowerCase();
+-  const [isLoggedIn, setIsLoggedIn] = React.useState(
+-    Boolean(localStorage.getItem('userToken'))
+-  );
+-
+-  React.useEffect(() => {
+-    const handleStorage = () => setIsLoggedIn(Boolean(localStorage.getItem('userToken')));
+-    window.addEventListener('storage', handleStorage);
+-    return () => window.removeEventListener('storage', handleStorage);
+-  }, []);
++  // Use AuthContext instead of localStorage for logged-in state
++  const { isAuthenticated } = useAuth();
++  const isLoggedIn = Boolean(isAuthenticated);
+ 
+   // Pages that show NO header
+   const noHeader = [
+diff --git a/src/components/AuthContext.jsx b/src/components/AuthContext.jsx
+index 538c656..addbb81 100644
+--- a/src/components/AuthContext.jsx
++++ b/src/components/AuthContext.jsx
+@@ -1,4 +1,5 @@
+ import React, { createContext, useContext, useState, useEffect } from 'react';
++import { useNavigate } from 'react-router-dom';
+ 
+ const AuthContext = createContext(null);
+ 
+@@ -12,39 +13,72 @@ export const useAuth = () => useContext(AuthContext);
+ 
+ export const AuthProvider = ({ children }) => {
+   const [userId, setUserId] = useState(null); // Null means not loaded/logged in
++  const [userWeight, setUserWeight] = useState(null);
++  const [userHeight, setUserHeight] = useState(null);
+   const [isAuthenticated, setIsAuthenticated] = useState(false);
++  const navigate = useNavigate();
+ 
+   // Mock function to simulate login
+-  const login = (id, token) => {
++  const login = (id, token, weight = null, height = null) => {
+     // In a real app, save token to storage
+     sessionStorage.setItem('authToken', token);
+     sessionStorage.setItem('userId', id);
++    if (weight) sessionStorage.setItem('userWeight', weight);
++    if (height) sessionStorage.setItem('userHeight', height);
+     setUserId(id);
++    setUserWeight(weight);
++    setUserHeight(height);
+     setIsAuthenticated(true);
++    console.debug('AuthContext: login()', { id, token, weight, height });
++  };
++
++  const logout = () => {
++    sessionStorage.removeItem('authToken');
++    sessionStorage.removeItem('userId');
++    sessionStorage.removeItem('userWeight');
++    sessionStorage.removeItem('userHeight');
++    setUserId(null);
++    setUserWeight(null);
++    setUserHeight(null);
++    setIsAuthenticated(false);
++    // Redirect to login page
++    try {
++      navigate('/loginpage');
++    } catch (e) {
++      // If navigate isn't available for some reason, ignore
++    }
+   };
+   
+   // Mock initialization hook (simulates checking if user is already logged in)
+   useEffect(() => {
+     const storedId = sessionStorage.getItem('userId');
+     const storedToken = sessionStorage.getItem('authToken');
++    const storedWeight = sessionStorage.getItem('userWeight');
++    const storedHeight = sessionStorage.getItem('userHeight');
+     
+     if (storedId && storedToken) {
+         // Here, you would validate the token with your backend.
+-        // For the demo, we assume the stored ID is valid.
+-        setUserId(parseInt(storedId, 10)); 
++        // Assume the stored ID is valid for now.
++        setUserId(parseInt(storedId, 10));
++        setUserWeight(storedWeight);
++        setUserHeight(storedHeight);
+         setIsAuthenticated(true);
+-    } else {
+-        // Fallback for demonstration: assume user 1 is logged in if nothing is found
+-        // REMOVE THIS LINE IN PRODUCTION!
+-        login(1, 'mock-token-123'); 
++        console.debug('AuthContext: initialized from sessionStorage', { storedId, storedToken, storedWeight });
+     }
++
++    // Listen for global logout events (dispatched by middleware on 401)
++    const handleGlobalLogout = () => logout();
++    window.addEventListener('auth-logout', handleGlobalLogout);
++    return () => window.removeEventListener('auth-logout', handleGlobalLogout);
+   }, []);
+ 
+   const value = {
+     userId,
++    userWeight,
++    userHeight,
+     isAuthenticated,
+     login,
+-    // logout function would also be here
++    logout,
+   };
+ 
+   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+diff --git a/src/components/WorkoutCard.jsx b/src/components/WorkoutCard.jsx
+new file mode 100644
+index 0000000..e571c7f
+--- /dev/null
++++ b/src/components/WorkoutCard.jsx
+@@ -0,0 +1,335 @@
++import React, { useState } from 'react';
++import '../style/WorkoutCard.css';
++
++import fetchWithMiddleware from '../utils/fetchMiddleware';
++
++const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComplete, exerciseIndex, exerciseCount, onNextExercise }) => {
++    const [sets, setSets] = useState(3);
++    const [reps, setReps] = useState('');
++    const [weightType, setWeightType] = useState('weight');
++    const [weightValue, setWeightValue] = useState('');
++    const [weightUnit, setWeightUnit] = useState('kg');
++    const [useBodyweight, setUseBodyweight] = useState(false);
++    const [completedSets, setCompletedSets] = useState([]);
++    const [completedExercises, setCompletedExercises] = useState([]);
++    const [currentExercise, setCurrentExercise] = useState(exercise);
++    const [isSaving, setIsSaving] = useState(false);
++
++    const handleWeightTypeChange = (e) => {
++        const type = e.target.value;
++        setWeightType(type);
++        if (type === 'bodyweight') {
++            setUseBodyweight(true);
++            setWeightValue('');
++        } else {
++            setUseBodyweight(false);
++            setWeightValue('');
++        }
++    };
++
++    const handleNextExercise = async () => {
++        // Save current exercise with its completed sets
++        if (completedSets.length > 0 || sets || reps) {
++            const exerciseData = {
++                id: Date.now(),
++                name: currentExercise.name,
++                sets: completedSets,
++                totalSets: completedSets.length,
++            };
++            setCompletedExercises([...completedExercises, exerciseData]);
++        }
++        
++        // Check if there are more exercises
++        const nextIdx = (exerciseIndex || 0) + 1;
++        if (nextIdx >= (exerciseCount || 0)) {
++            // No more exercises — finish the workout and create new plan
++            let allExercises = completedExercises;
++            if (completedSets.length > 0 || sets || reps) {
++                const exerciseData = {
++                    id: Date.now(),
++                    name: currentExercise.name,
++                    sets: completedSets,
++                    totalSets: completedSets.length,
++                };
++                allExercises = [...completedExercises, exerciseData];
++            }
++
++            try {
++                // Call the same completion endpoint to create new plan
++                await fetchWithMiddleware(
++                    'http://localhost:5000/api/workouts/complete',
++                    {
++                        method: 'POST',
++                        headers: { 'Content-Type': 'application/json' },
++                        body: JSON.stringify({
++                            user_id: userId,
++                            plan_id: planId,
++                            completed_exercises: allExercises.map(ex => ({
++                                name: ex.name,
++                                sets_completed: ex.totalSets,
++                            })),
++                            completed_at: new Date().toISOString(),
++                        }),
++                    }
++                );
++                alert('Workout completed! 🎉 New workout plan created.');
++                if (onWorkoutComplete) {
++                    onWorkoutComplete();
++                }
++            } catch (error) {
++                console.error('Error completing workout:', error);
++                alert('Error completing workout');
++            }
++            
++            onClose && onClose();
++            return;
++        }
++        
++        // Tell parent to load next exercise
++        if (onNextExercise) {
++            onNextExercise();
++        }
++        
++        // Reset form for next exercise
++        setSets(3);
++        setReps('');
++        setWeightValue('');
++        setWeightType('weight');
++        setUseBodyweight(false);
++        setCompletedSets([]);
++    };
++
++    const handleFinishWorkout = async () => {
++        // Save current exercise if it has sets
++        let allExercises = completedExercises;
++        if (completedSets.length > 0 || sets || reps) {
++            const exerciseData = {
++                id: Date.now(),
++                name: currentExercise.name,
++                sets: completedSets,
++                totalSets: completedSets.length,
++            };
++            allExercises = [...completedExercises, exerciseData];
++        }
++
++        if (allExercises.length === 0) {
++            alert('Complete at least one exercise before finishing workout');
++            return;
++        }
++
++        setIsSaving(true);
++        try {
++            // Save workout completion to database
++            const response = await fetchWithMiddleware(
++                'http://localhost:5000/api/workouts/complete',
++                {
++                    method: 'POST',
++                    headers: { 'Content-Type': 'application/json' },
++                    body: JSON.stringify({
++                        user_id: userId,
++                        plan_id: planId,
++                        completed_exercises: allExercises.map(ex => ({
++                            name: ex.name,
++                            sets_completed: ex.totalSets,
++                        })),
++                        completed_at: new Date().toISOString(),
++                    }),
++                }
++            );
++
++            if (response && response.success) {
++                alert('Workout completed and saved! 🎉');
++                if (onWorkoutComplete) {
++                    onWorkoutComplete();
++                }
++                onClose();
++            } else {
++                alert('Error saving workout. Please try again.');
++            }
++        } catch (error) {
++            console.error('Error finishing workout:', error);
++            alert('Error completing workout');
++        } finally {
++            setIsSaving(false);
++        }
++    };
++
++    const handleFinishSet = () => {
++        if (sets && reps) {
++            const setData = {
++                id: Date.now(),
++                sets,
++                reps,
++                weightType,
++                weightValue: useBodyweight ? 'Bodyweight' : weightValue,
++                weightUnit: useBodyweight ? '' : weightUnit,
++            };
++            setCompletedSets([...completedSets, setData]);
++            // Reset form
++            setReps('');
++            setWeightValue('');
++        } else {
++            alert('Please fill in Sets and Reps');
++        }
++    };
++
++    const removeCompletedSet = (id) => {
++        setCompletedSets(completedSets.filter(set => set.id !== id));
++    };
++
++    const handleRemoveControl = (field) => {
++        if (field === 'sets') setSets('');
++        if (field === 'reps') setReps('');
++        if (field === 'weight') setWeightValue('');
++    };
++
++    return (
++        <div className="workout-card">
++            {/* Completed Exercises */}
++            {completedExercises.length > 0 && (
++                <div className="completed-exercises-section">
++                    <div className="completed-exercises-grid">
++                        {completedExercises.map((ex) => (
++                            <div key={ex.id} className="completed-exercise-card">
++                                <div className="exercise-card-dot"></div>
++                                <h4 className="exercise-card-name">{ex.name}</h4>
++                                <p className="exercise-card-sets">{ex.totalSets} sets completed</p>
++                            </div>
++                        ))}
++                    </div>
++                </div>
++            )}
++
++            {/* Current Exercise Header */}
++            <div className="workout-card-header">
++                <div className="exercise-header-top">
++                    <div className="exercise-dot"></div>
++                    <h3 className="exercise-title">{currentExercise.name}</h3>
++                                <button className="btn-close-workout" onClick={onClose}>✕</button>
++                </div>
++            </div>
++
++            <div className="set-container">
++                {/* Reps, Sets, and Weight Controls */}
++                <div className="controls-grid">
++                    <div className="control-item">
++                        <label>Sets</label>
++                        <input 
++                            type="number" 
++                            name="sets" 
++                            value={sets}
++                            onChange={(e) => setSets(e.target.value)}
++                            min="1"
++                        />
++                        <button className="btn-remove-control" onClick={() => handleRemoveControl('sets')}>✕</button>
++                    </div>
++
++                    <div className="control-item">
++                        <label>Reps</label>
++                        <input 
++                            type="number" 
++                            name="reps" 
++                            value={reps}
++                            onChange={(e) => setReps(e.target.value)}
++                            min="1"
++                        />
++                        <button className="btn-remove-control" onClick={() => handleRemoveControl('reps')}>✕</button>
++                    </div>
++
++                    <div className="control-item control-item-weight">
++                        <label>Weight</label>
++                        <select
++                            value={weightType}
++                            onChange={handleWeightTypeChange}
++                            className="weight-select"
++                        >
++                            <option value="weight">Weight</option>
++                            <option value="bodyweight">Bodyweight</option>
++                            <option value="2.2">2.2</option>
++                            <option value="2.5">2.5</option>
++                            <option value="3">3</option>
++                            <option value="4">4</option>
++                            <option value="5">5</option>
++                            <option value="10">10</option>
++                            <option value="15">15</option>
++                            <option value="20">20</option>
++                        </select>
++                        
++                        {!useBodyweight && (
++                            <>
++                                <select 
++                                    value={weightUnit}
++                                    onChange={(e) => setWeightUnit(e.target.value)}
++                                    className="weight-unit-select"
++                                >
++                                    <option>kg</option>
++                                    <option>lb</option>
++                                </select>
++                                
++                                <input 
++                                    type="number" 
++                                    value={weightValue}
++                                    onChange={(e) => setWeightValue(e.target.value)}
++                                    placeholder="0"
++                                    min="0"
++                                />
++                            </>
++                        )}
++                        
++                        <button className="btn-remove-control" onClick={() => handleRemoveControl('weight')}>✕</button>
++                    </div>
++                </div>
++
++                {/* Weight Display Row */}
++                {useBodyweight && (
++                    <div className="weight-input-row">
++                        <div className="bodyweight-check">
++                            <input type="checkbox" checked readOnly />
++                            <span>Bodyweight</span>
++                        </div>
++                    </div>
++                )}
++
++                {/* Finish Set Button */}
++                <button className="btn-finish-set" onClick={handleFinishSet}>Finish Set</button>
++
++                {/* Action Buttons */}
++                <div className="action-buttons">
++                    <button className="btn-add-set" onClick={handleFinishSet}>+ Add set</button>
++                    <button className="btn-next-exercise" onClick={handleNextExercise}>→ Next Exercise</button>
++
++                                {completedExercises.length > 0 && (
++                                    <button className="btn-finish-workout" onClick={handleFinishWorkout} disabled={isSaving}>
++                                        {isSaving ? 'Saving...' : '✓ Finish Workout'}
++                                    </button>
++                                )}
++                </div>
++
++                {/* Completed Sets List */}
++                {completedSets.length > 0 && (
++                    <div className="completed-sets">
++                        <h4>Completed Sets</h4>
++                        {completedSets.map((set, idx) => (
++                            <div key={set.id} className="completed-set-item">
++                                <div className="set-info">
++                                    <input type="checkbox" defaultChecked />
++                                    <span className="set-details">
++                                        Set {idx + 1}: {set.reps} reps {set.weightValue ? `@ ${set.weightValue} ${set.weightUnit}` : ''}
++                                    </span>
++                                </div>
++                                <button 
++                                    className="btn-remove-set" 
++                                    onClick={() => removeCompletedSet(set.id)}
++                                >
++                                    ✕
++                                </button>
++                            </div>
++                        ))}
++                    </div>
++                )}
++            </div>
++        </div>
++    );
++};
++
++export default WorkoutCard;
+diff --git a/src/main.jsx b/src/main.jsx
+index dcf8d91..91065b5 100644
+--- a/src/main.jsx
++++ b/src/main.jsx
+@@ -3,11 +3,14 @@ import { createRoot } from 'react-dom/client'
+ import { BrowserRouter } from 'react-router-dom'
+ {/*import './index.css'*/}
+ import App from './App.jsx'
++import { AuthProvider } from './components/AuthContext'
+ 
+ createRoot(document.getElementById('root')).render(
+   <StrictMode>
+     <BrowserRouter>
+-    <App />
++    <AuthProvider>
++      <App />
++    </AuthProvider>
+     </BrowserRouter>
+   </StrictMode>,
+ )
+diff --git a/src/pages/SignUp.jsx b/src/pages/SignUp.jsx
+index 8fd1a3b..505423e 100644
+--- a/src/pages/SignUp.jsx
++++ b/src/pages/SignUp.jsx
+@@ -1,87 +1,109 @@
+ import React from 'react';
+ import axios from 'axios';
+-import { Link } from 'react-router-dom'; 
++import { Link } from 'react-router-dom';
+ import useForm from '../components/useForm';
+ import '../style/signup.css';
+ 
+ function SignUp() {
+-  const { 
+-      formData, 
+-      handleChange, 
+-      message, 
+-      setMessage, 
+-      isSubmitting, 
+-      setIsSubmitting,
+-      resetForm
+-  } = useForm({
+-      username: '',
+-      email: '',
+-      password: '',
+-
+-  });
+-
+-  const apiUrl = 'http://localhost/react-api/API/signup.php'; 
+-
+-  const handleSubmit = async (e) => {
+-      e.preventDefault();
+-      setIsSubmitting(true);
+-      setMessage('Signing up...');
+-
+-      try {
+-          const response = await axios.post(apiUrl, formData);
+-
+-          if (response.data.status === 'success') {
+-              setMessage(response.data.message + ' You can now log in!');
+-              resetForm();
+-          } else {
+-              setMessage(`Registration failed: ${response.data.message}`);
+-          }
+-      } catch (error) {
+-          console.error('Sign-up Error:', error);
+-          let errorMessage = 'An unexpected server error occurred.';
+-          if (error.response?.data?.message) {
+-              errorMessage = error.response.data.message; 
+-          }
+-          setMessage(`Error: ${errorMessage}`);
+-      } finally {
+-          setIsSubmitting(false);
+-      }
+-  };
+-
+-  return (
+-    <div className="signup-container">
+-      <div className="overlay"></div>
+-       
+-      <Link to="/LoginPage" className="back-btn">← Back</Link>
+-
+-      <div className="signup-box">
+-        <h2>Create Account</h2>
+-
+-        <div className={`message-box ${
+-            message.includes('success') ? 'message-success' :
+-            message.includes('Error') ? 'message-error' : ''
+-        }`}>
+-          {message || 'Enter your details to register.'}
+-        </div>
+-
+-        <form onSubmit={handleSubmit}>
+-          <label>Username</label>
+-          <input type="text" name="username" value={formData.username} onChange={handleChange} required />
+-
+-          <label>Email</label>
+-          <input type="email" name="email" value={formData.email} onChange={handleChange} required />
+-
+-          <label>Password</label>
+-          <input type="password" name="password" value={formData.password} onChange={handleChange} required />
+-
+-          
+-          <button type="submit" disabled={isSubmitting}>
+-            {isSubmitting ? 'Registering...' : 'Register'}
+-          </button>
+-        </form>
+-      </div>
+-    </div>
+-  );
++  const {
++    formData,
++    handleChange,
++    message,
++    setMessage,
++    isSubmitting,
++    setIsSubmitting,
++    resetForm
++  } = useForm({
++    username: '',
++    email: '',
++    password: '',
++    age: '',
++    gender: '',
++    height: '',
++    weight: ''
++
++  });
++
++  const apiUrl = 'http://localhost:5000/api/auth/signup';
++
++  const handleSubmit = async (e) => {
++    e.preventDefault();
++    setIsSubmitting(true);
++    setMessage('Signing up...');
++
++    try {
++      const response = await axios.post(apiUrl, formData);
++
++      if (response.data.success) {
++        setMessage(response.data.message + ' You can now log in!');
++        resetForm();
++      } else {
++        setMessage(`Registration failed: ${response.data.message}`);
++      }
++    } catch (error) {
++      console.error('Sign-up Error:', error);
++      let errorMessage = 'An unexpected server error occurred.';
++      if (error.response?.data?.message) {
++        errorMessage = error.response.data.message;
++      }
++      setMessage(`Error: ${errorMessage}`);
++    } finally {
++      setIsSubmitting(false);
++    }
++  }; return (
++    <div className="signup-container">
++      <div className="overlay"></div>
++
++      <Link to="/LoginPage" className="back-btn">← Back</Link>
++
++      <div className="signup-box">
++        <h2>Create Account</h2>
++
++        <div className={`message-box ${message.includes('success') ? 'message-success' :
++            message.includes('Error') ? 'message-error' : ''
++          }`}>
++          {message || 'Enter your details to register.'}
++        </div>
++
++        <form onSubmit={handleSubmit}>
++          <label>Username</label>
++          <input type="text" name="username" value={formData.username} onChange={handleChange} required />
++
++          <label>Age</label>
++          <input type="text" name="age" value={formData.age} onChange={handleChange} required />
++
++          <label>Gender</label>
++          <select name="gender" value={formData.gender} onChange={handleChange}>
++            <option value="">Select Gender</option>
++            <option value="Male">Male</option>
++            <option value="Female">Female</option>
++            <option value="Other">Other</option>
++          </select>
++
++          <label>Height</label>
++          <input type="text" name="height" value={formData.height} onChange={handleChange} required />
++
++          <label>Weight</label>
++          <input type="text" name="weight" value={formData.weight} onChange={handleChange} required />
++
++          <label>Email</label>
++          <input type="email" name="email" value={formData.email} onChange={handleChange} required />
++
++          <label>Password</label>
++          <input type="password" name="password" value={formData.password} onChange={handleChange} required />
++
++
++          <button type="submit" disabled={isSubmitting}>
++            {isSubmitting ? 'Registering...' : 'Register'}
++          </button>
++
++          <p>
++            Already have an account? <Link to="/loginpage">Log In</Link>
++          </p>
++        </form>
++      </div>
++    </div>
++  );
+ }
+ 
+ export default SignUp;
+\ No newline at end of file
+diff --git a/src/pages/information_setup.jsx b/src/pages/information_setup.jsx
+index 8a9e7c1..2c903b2 100644
+--- a/src/pages/information_setup.jsx
++++ b/src/pages/information_setup.jsx
+@@ -2,20 +2,16 @@ import React, { useState, useEffect } from "react";
+ import "../style/information_setup.css";
+ import { useNavigate } from "react-router-dom";
+ import { fetchData, excerciseOptions } from "../utils/fetchData";
++import fetchWithMiddleware from "../utils/fetchMiddleware";
++import { useAuth } from "../components/AuthContext";
+ 
+ const InformationSetup = () => {
+   const navigate = useNavigate();
++  const { userId: authUserId, isAuthenticated } = useAuth();
+ 
+-  // Step navigation
++  // Step navigation (starting at 1 for equipment selection)
+   const [step, setStep] = useState(1);
+ 
+-  const [formData, setFormData] = useState({
+-    height: "",
+-    weight: "",
+-    age: "",
+-    gender: "Male",
+-  });
+-
+   // Equipment state
+   const [equipmentList, setEquipmentList] = useState([]);
+   const [selectedEquipment, setSelectedEquipment] = useState([]);
+@@ -43,7 +39,8 @@ const InformationSetup = () => {
+   useEffect(() => {
+     const fetchTargets = async () => {
+       try {
+-        const targetData = await fetchData('https://exercisedb.p.rapidapi.com/exercises/targetList', excerciseOptions);
++        const targetData = await fetchData('https://exercisedb.p.rapidapi.com/exercises/bodyPartList', excerciseOptions);
++        //console.log('Fetched Body Part List:', targetData);
+         setTargetList(targetData);
+       } catch (error) {
+         console.error('Error fetching targets:', error);
+@@ -52,29 +49,72 @@ const InformationSetup = () => {
+     fetchTargets();
+   }, []);
+ 
++  // --- MODIFIED useEffect FOR "AND" FILTERING LOGIC WITH FALLBACK ---
+   useEffect(() => {
+     const fetchExercises = async () => {
+-      if (selectedEquipment.length === 0 && selectedTargets.length === 0) return;
++      // If no filters are selected, show an empty list immediately.
++      if (selectedEquipment.length === 0 && selectedTargets.length === 0) {
++        return setExerciseList([]);
++      }
++
+       try {
+         let exercises = [];
+-        for (const equipment of selectedEquipment) {
+-          const equipmentExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/equipment/${equipment}`, excerciseOptions);
+-          exercises = [...exercises, ...equipmentExercises];
+-        }
+-        for (const target of selectedTargets) {
+-          const targetExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/target/${target}`, excerciseOptions);
+-          exercises = [...exercises, ...targetExercises];
++        let uniqueExercises = [];
++
++        // Variable to hold the equipment-only list for fallback
++        let equipmentOnlyExercises = []; 
++
++        if (selectedEquipment.length > 0) {
++          // 1. Primary Fetch: Fetch all exercises matching the selected equipment
++          for (const equipment of selectedEquipment) {
++            const equipmentExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/equipment/${equipment}`, excerciseOptions);
++            exercises = [...exercises, ...equipmentExercises];
++          }
++          
++          // Remove duplicates to get the equipment-only list
++          equipmentOnlyExercises = exercises.filter((exercise, index, self) =>
++            index === self.findIndex((e) => e.id === exercise.id)
++          );
++          
++          // Start with the equipment-only list for initial filtering
++          uniqueExercises = equipmentOnlyExercises; 
++
++          // 2. Apply the secondary filter (AND logic) IF targets are also selected
++          if (selectedTargets.length > 0) {
++            const targetFilteredExercises = uniqueExercises.filter(exercise =>
++              // Check if the exercise's bodyPart is included in the user's selectedTargets
++              selectedTargets.includes(exercise.bodyPart)
++            );
++
++            // 3. FALLBACK LOGIC: If the AND filter yields no results, revert to showing equipment-only exercises.
++            if (targetFilteredExercises.length === 0) {
++              uniqueExercises = equipmentOnlyExercises; // Revert to equipment-only list
++              console.log('No exercises found matching BOTH criteria. Falling back to Equipment-only exercises.');
++            } else {
++              uniqueExercises = targetFilteredExercises; // Use the successful AND filter result
++            }
++          }
++        } else if (selectedTargets.length > 0) {
++          // If ONLY targets are selected (and equipment is empty), fetch only by target.
++          for (const target of selectedTargets) {
++            const targetExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/bodyPart/${target}`, excerciseOptions);
++            exercises = [...exercises, ...targetExercises];
++          }
++          // Remove duplicates
++          uniqueExercises = exercises.filter((exercise, index, self) =>
++            index === self.findIndex((e) => e.id === exercise.id)
++          );
+         }
+-        const uniqueExercises = exercises.filter((exercise, index, self) =>
+-          index === self.findIndex((e) => e.id === exercise.id)
+-        );
++        
++        // 4. Update the list
+         setExerciseList(uniqueExercises);
+       } catch (error) {
+-        console.error('Error fetching exercises:', error);
++        console.error('Error fetching and filtering exercises:', error);
+       }
+     };
+     fetchExercises();
+   }, [selectedEquipment, selectedTargets]);
++  // --- END OF MODIFIED useEffect ---
+ 
+   const handleChange = (e) => {
+     const { name, value } = e.target;
+@@ -105,71 +145,84 @@ const InformationSetup = () => {
+     );
+   };
+ 
+-  const nextStep = () => setStep((prev) => Math.min(prev + 1, 4));
++  const nextStep = () => setStep((prev) => Math.min(prev + 1, 3));
+   const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
+ 
+-  const handleSubmit = (e) => {
++  const handleSubmit = async (e) => {
+     e.preventDefault();
+-    console.log("Final data:", formData);
+-    alert("Profile setup complete!");
+-    navigate("/homepage");
++    
++    try {
++      // Use AuthContext's userId (session-managed) rather than localStorage
++      const userId = authUserId;
++
++      console.debug('handleSubmit - userId:', userId, 'isAuthenticated:', isAuthenticated);
++      console.debug('handleSubmit - selectedExercises:', selectedExercises);
++      console.debug('handleSubmit - exerciseList length:', exerciseList.length);
++
++      if (!userId) {
++        alert('Please log in to save your workout plan');
++        navigate('/loginpage'); // Redirect to login if not logged in
++        return;
++      }
++
++      if (selectedExercises.length === 0) {
++        alert('Please select at least one exercise before saving');
++        return;
++      }
++
++      // Create a workout plan with selected exercises
++      const planData = {
++        user_id: parseInt(userId),
++        plan_title: 'My Workout Plan',
++        goal: 'Custom workout plan',
++        exercises: exerciseList
++          .filter(exercise => selectedExercises.includes(exercise.id))
++          .map((exercise, index) => ({
++            name: exercise.name,
++            equipment: exercise.equipment,
++            bodyPart: exercise.bodyPart,
++            difficulty: exercise.difficulty || 'beginner',
++            sets: 3,
++            reps: 10,
++            day_of_week: (index % 7) + 1,
++            weight_type: 'weighted'
++          }))
++      };
++      
++      console.debug('Sending planData:', planData);
++      console.log('planData exercises count:', planData.exercises.length);
++      console.log('planData.user_id:', planData.user_id, 'type:', typeof planData.user_id);
++      console.log('planData.plan_title:', planData.plan_title);
++
++      // Send the data to your Node.js endpoint using the middleware (attaches auth token)
++      const result = await fetchWithMiddleware('http://localhost:5000/api/workouts/save', {
++        method: 'POST',
++        headers: {
++          'Content-Type': 'application/json',
++        },
++        body: JSON.stringify(planData)
++      });
++      
++      console.debug('saveWorkoutPlan result:', result);
++      
++      // If middleware returns an object, check for success
++       if (result && result.success) {
++         alert('Workout plan saved successfully!');
++         navigate("/homepage");
++       } else {
++         const errorMsg = (result && result.message) || 'Unknown error';
++         console.error('saveWorkoutPlan failed:', errorMsg, result);
++         alert('Failed to save workout plan: ' + errorMsg);
++       }
++    } catch (error) {
++      console.error('Error saving workout plan:', error);
++      alert('Failed to save workout plan. Please try again.');
++    }
+   };
+ 
+   const renderStep = () => {
+     switch (step) {
+       case 1:
+-        return (
+-          <div className="form-step">
+-            <div className="form-row">
+-              <div className="form-half">
+-                <label>Height (cm)</label>
+-                <input
+-                  type="number"
+-                  name="height"
+-                  value={formData.height}
+-                  onChange={handleChange}
+-                  required
+-                />
+-              </div>
+-              <div className="form-half">
+-                <label>Weight (kg)</label>
+-                <input
+-                  type="number"
+-                  name="weight"
+-                  value={formData.weight}
+-                  onChange={handleChange}
+-                  required
+-                />
+-              </div>
+-            </div>
+-            <div className="form-row">
+-              <div className="form-half">
+-                <label>Age</label>
+-                <input
+-                  type="number"
+-                  name="age"
+-                  value={formData.age}
+-                  onChange={handleChange}
+-                  required
+-                />
+-              </div>
+-              <div className="form-half">
+-                <label>Gender</label>
+-                <select
+-                  name="gender"
+-                  value={formData.gender}
+-                  onChange={handleChange}
+-                >
+-                  <option value="Male">Male</option>
+-                  <option value="Female">Female</option>
+-                  <option value="Other">Other</option>
+-                </select>
+-              </div>
+-            </div>
+-          </div>
+-        );
+-
+-      case 2:
+         return (
+           <div className="step-placeholder">
+             <p>Select your <span>equipment</span> here.</p>
+@@ -187,7 +240,7 @@ const InformationSetup = () => {
+           </div>
+         );
+ 
+-      case 3:
++      case 2:
+         return (
+           <div className="step-placeholder">
+             <p>Choose target <span>muscle groups</span>.</p>
+@@ -205,7 +258,7 @@ const InformationSetup = () => {
+           </div>
+         );
+ 
+-      case 4:
++      case 3:
+         return (
+           <div className="step-placeholder">
+             <p>Finalize your <span>exercise plan</span>.</p>
+@@ -241,14 +294,14 @@ const InformationSetup = () => {
+       <div className="info-card">
+         {/* Progress Steps */}
+         <div className="steps">
+-          {[1, 2, 3, 4].map((num) => (
++          {[1, 2, 3].map((num) => (
+             <div
+               key={num}
+               className={`step ${step === num ? "active" : ""}`}
+             >
+               <div className="circle">{num}</div>
+               <span className="label">
+-                {["Information", "Equipment", "Muscles", "Exercises"][num - 1]}
++                {["Equipment", "Muscles", "Exercises"][num - 1]}
+               </span>
+             </div>
+           ))}
+@@ -263,7 +316,7 @@ const InformationSetup = () => {
+                 Previous
+               </button>
+             )}
+-            {step < 4 && (
++            {step < 3 && (
+               <button type="button" className="next-btn" onClick={nextStep}>
+                 Continue
+               </button>
+diff --git a/src/pages/login_page.jsx b/src/pages/login_page.jsx
+index 9f829ee..58e3b50 100644
+--- a/src/pages/login_page.jsx
++++ b/src/pages/login_page.jsx
+@@ -2,10 +2,12 @@ import React from 'react';
+ import axios from 'axios';
+ import { Link, useNavigate } from 'react-router-dom';
+ import useForm from '../components/useForm';
++import { useAuth } from '../components/AuthContext';
+ import '../style/log-in.css'; 
+ 
+ function LoginPage() {
+   const navigate = useNavigate();
++  const { login } = useAuth();
+   const { 
+     formData, 
+     handleChange, 
+@@ -19,7 +21,7 @@ function LoginPage() {
+     password: ''
+   });
+ 
+-  const apiUrl = 'http://localhost/react-api/API/login.php';
++  const apiUrl = 'http://localhost:5000/api/auth/login';
+ 
+   const handleSubmit = async (e) => {
+     e.preventDefault();
+@@ -29,10 +31,19 @@ function LoginPage() {
+     try {
+       const response = await axios.post(apiUrl, formData);
+ 
+-      if (response.data.status === 'success') {
++      if (response.data.success) {
+         setMessage(`Welcome back, ${response.data.username}!`);
+-        localStorage.setItem('userToken', response.data.token);
+-        localStorage.setItem('username', response.data.username);
++        console.log('Login response:', response.data);
++        // Also inform AuthContext about the login so sessionStorage + context state are set
++        // `user_id` is returned by the API and matches AuthContext.login(id, token)
++        if (response.data.user_id) {
++          console.log('Calling login with:', response.data.user_id, response.data.weight, response.data.height);
++          login(response.data.user_id, response.data.token, response.data.weight, response.data.height);
++        } else {
++          // Fallback: set a mock user id if API didn't return one
++          login(1, response.data.token);
++        }
++
+         resetForm();
+         navigate('/homepage');
+       } else {
+diff --git a/src/pages/rapidApi.js b/src/pages/rapidApi.js
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/style/WorkoutCard.css b/src/style/WorkoutCard.css
+new file mode 100644
+index 0000000..f07f3ed
+--- /dev/null
++++ b/src/style/WorkoutCard.css
+@@ -0,0 +1,472 @@
++.workout-card {
++  background: linear-gradient(135deg, #1a1f2e 0%, #0f1419 100%);
++  border: 1px solid rgba(255, 255, 255, 0.08);
++  border-radius: 12px;
++  padding: 20px;
++  margin-bottom: 24px;
++  color: #fff;
++  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
++}
++
++/* Completed Exercises Section */
++.completed-exercises-section {
++  margin-bottom: 24px;
++  padding-bottom: 20px;
++  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
++}
++
++.completed-exercises-grid {
++  display: grid;
++  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
++  gap: 12px;
++}
++
++.completed-exercise-card {
++  background: linear-gradient(135deg, rgba(78, 205, 196, 0.1) 0%, rgba(68, 169, 137, 0.1) 100%);
++  border: 1px solid rgba(78, 205, 196, 0.3);
++  border-radius: 8px;
++  padding: 14px;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: 8px;
++  cursor: pointer;
++  transition: all 0.3s ease;
++}
++
++.completed-exercise-card:hover {
++  background: linear-gradient(135deg, rgba(78, 205, 196, 0.15) 0%, rgba(68, 169, 137, 0.15) 100%);
++  border-color: rgba(78, 205, 196, 0.5);
++  transform: translateY(-2px);
++}
++
++.exercise-card-dot {
++  width: 12px;
++  height: 12px;
++  background: linear-gradient(135deg, #4ecdc4 0%, #44a989 100%);
++  border-radius: 50%;
++}
++
++.exercise-card-name {
++  font-size: 13px;
++  font-weight: 600;
++  margin: 0;
++  color: #7dd3fc;
++  text-align: center;
++  line-height: 1.3;
++}
++
++.exercise-card-sets {
++  font-size: 11px;
++  color: #a0aec0;
++  margin: 0;
++  text-align: center;
++}
++
++/* Header Section */
++.workout-card-header {
++  display: flex;
++  justify-content: space-between;
++  align-items: flex-start;
++  margin-bottom: 16px;
++}
++
++.exercise-header-top {
++
++  .btn-close-workout {
++    background: none;
++    border: none;
++    color: #ff6b6b;
++    font-size: 24px;
++    cursor: pointer;
++    padding: 4px 8px;
++    transition: color 0.2s;
++  }
++
++  .btn-close-workout:hover {
++    color: #ff5252;
++  }
++  display: flex;
++  align-items: center;
++  gap: 12px;
++}
++
++.exercise-dot {
++  width: 20px;
++  height: 20px;
++  background: linear-gradient(135deg, #4ecdc4 0%, #44a989 100%);
++  border-radius: 50%;
++  flex-shrink: 0;
++}
++
++.exercise-title {
++  font-size: 18px;
++  font-weight: 600;
++  margin: 0;
++  color: #7dd3fc;
++}
++
++/* Set Container */
++.set-container {
++  margin-top: 16px;
++}
++
++/* Completed Sets Grid */
++.completed-sets-grid {
++  display: grid;
++  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
++  gap: 16px;
++  margin-bottom: 20px;
++  padding-bottom: 16px;
++  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
++}
++
++.set-card {
++  background: rgba(255, 255, 255, 0.04);
++  border: 1px solid rgba(255, 255, 255, 0.1);
++  border-radius: 10px;
++  padding: 16px;
++  display: flex;
++  flex-direction: column;
++  gap: 12px;
++}
++
++.set-header {
++  display: flex;
++  justify-content: space-between;
++  align-items: center;
++  margin-bottom: 8px;
++}
++
++.set-number {
++  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
++  color: white;
++  padding: 6px 12px;
++  border-radius: 4px;
++  font-size: 12px;
++  font-weight: 700;
++  letter-spacing: 0.5px;
++}
++
++.btn-delete-set {
++  background: none;
++  border: none;
++  color: #ff6b6b;
++  font-size: 18px;
++  cursor: pointer;
++  padding: 4px 8px;
++  transition: color 0.2s;
++}
++
++.btn-delete-set:hover {
++  color: #ff5252;
++}
++
++/* Set Body */
++.set-body {
++  display: flex;
++  flex-direction: column;
++  gap: 10px;
++}
++
++.set-row {
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++}
++
++.set-row label {
++  font-size: 11px;
++  color: #a0aec0;
++  font-weight: 600;
++  text-transform: uppercase;
++}
++
++.set-input-readonly {
++  padding: 10px 12px;
++  background: rgba(255, 255, 255, 0.05);
++  border: 1px solid rgba(255, 255, 255, 0.1);
++  color: #fff;
++  border-radius: 6px;
++  font-size: 13px;
++  cursor: not-allowed;
++}
++
++.set-checkbox {
++  width: 18px;
++  height: 18px;
++  cursor: not-allowed;
++  accent-color: #4ecdc4;
++}
++
++.btn-edit {
++  padding: 10px 16px;
++  background: linear-gradient(135deg, #4ecdc4 0%, #44a989 100%);
++  border: none;
++  color: white;
++  border-radius: 6px;
++  font-size: 13px;
++  font-weight: 600;
++  cursor: pointer;
++  transition: all 0.3s ease;
++  margin-top: 4px;
++}
++
++.btn-edit:hover {
++  transform: translateY(-2px);
++  box-shadow: 0 4px 12px rgba(78, 205, 196, 0.4);
++}
++
++/* Input Section for New Set */
++.set-input-section {
++  background: rgba(255, 255, 255, 0.03);
++  border: 1px solid rgba(255, 255, 255, 0.1);
++  border-radius: 10px;
++  padding: 16px;
++  display: flex;
++  flex-direction: column;
++  gap: 12px;
++}
++
++.set-badge {
++  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
++  color: white;
++  padding: 8px 16px;
++  border-radius: 6px;
++  font-size: 13px;
++  font-weight: 700;
++  letter-spacing: 0.5px;
++  width: fit-content;
++  margin-bottom: 4px;
++}
++
++.input-row {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  flex-wrap: wrap;
++}
++
++.input-row label {
++  font-size: 11px;
++  color: #a0aec0;
++  font-weight: 600;
++  text-transform: uppercase;
++  min-width: 50px;
++}
++
++.weight-select,
++.weight-unit-select {
++  padding: 10px 12px;
++  background: rgba(255, 255, 255, 0.08);
++  border: 1px solid rgba(255, 255, 255, 0.15);
++  color: #fff;
++  border-radius: 6px;
++  font-size: 12px;
++  cursor: pointer;
++  appearance: none;
++  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
++  background-repeat: no-repeat;
++  background-position: right 8px center;
++  background-size: 14px;
++  padding-right: 28px;
++}
++
++.weight-select:hover,
++.weight-unit-select:hover {
++  background-color: rgba(255, 255, 255, 0.12);
++}
++
++.weight-select option,
++.weight-unit-select option {
++  background: #1a1f2e;
++  color: #fff;
++}
++
++.weight-row,
++.bodyweight-row {
++  margin-top: 8px;
++}
++
++.weight-value-input {
++  padding: 10px 12px;
++  background: rgba(255, 255, 255, 0.08);
++  border: 1px solid rgba(255, 255, 255, 0.15);
++  color: #fff;
++  border-radius: 6px;
++  font-size: 13px;
++  outline: none;
++  width: 70px;
++}
++
++.weight-value-input::placeholder {
++  color: #666;
++}
++
++.weight-value-input:focus {
++  border-color: rgba(125, 211, 252, 0.5);
++  background: rgba(125, 211, 252, 0.05);
++}
++
++.reps-input {
++  padding: 10px 12px;
++  background: rgba(255, 255, 255, 0.08);
++  border: 1px solid rgba(255, 255, 255, 0.15);
++  color: #fff;
++  border-radius: 6px;
++  font-size: 13px;
++  outline: none;
++  width: 70px;
++}
++
++.reps-input::placeholder {
++  color: #666;
++}
++
++.reps-input:focus {
++  border-color: rgba(125, 211, 252, 0.5);
++  background: rgba(125, 211, 252, 0.05);
++}
++
++.btn-remove-x {
++  background: none;
++  border: none;
++  color: #a0aec0;
++  font-size: 18px;
++  cursor: pointer;
++  padding: 4px 8px;
++  transition: color 0.2s;
++}
++
++.btn-remove-x:hover {
++  color: #ff6b6b;
++}
++
++.btn-check {
++  background: none;
++  border: none;
++  color: #4ade80;
++  font-size: 16px;
++  cursor: pointer;
++  padding: 4px 8px;
++  transition: color 0.2s;
++  font-weight: bold;
++}
++
++.btn-check:hover {
++  color: #22c55e;
++}
++
++.bodyweight-checkbox {
++  width: 18px;
++  height: 18px;
++  cursor: pointer;
++  accent-color: #4ecdc4;
++}
++
++/* Finish Set Button */
++.btn-finish-set {
++  width: 100%;
++  padding: 12px 16px;
++  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
++  border: none;
++  color: white;
++  border-radius: 6px;
++  font-size: 14px;
++  font-weight: 600;
++  cursor: pointer;
++  transition: all 0.3s ease;
++  margin-top: 8px;
++}
++
++.btn-finish-set:hover {
++  transform: translateY(-2px);
++  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
++}
++
++/* Action Buttons */
++.action-buttons {
++  display: flex;
++  gap: 12px;
++  margin-top: 16px;
++}
++
++.btn-add-set {
++  flex: 1;
++  padding: 12px 16px;
++  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
++  border: none;
++  color: white;
++  border-radius: 6px;
++  font-size: 14px;
++  font-weight: 600;
++  cursor: pointer;
++  transition: all 0.3s ease;
++}
++
++.btn-add-set:hover {
++  transform: translateY(-2px);
++  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
++
++.btn-finish-workout {
++  width: 100%;
++  padding: 14px 16px;
++  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
++  border: none;
++  color: white;
++  border-radius: 6px;
++  font-size: 15px;
++  font-weight: 700;
++  cursor: pointer;
++  transition: all 0.3s ease;
++  margin-top: 16px;
++}
++
++.btn-finish-workout:hover:not(:disabled) {
++  transform: translateY(-2px);
++  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4);
++}
++
++.btn-finish-workout:disabled {
++  opacity: 0.6;
++  cursor: not-allowed;
++}
++}
++
++.btn-next-exercise {
++  flex: 1;
++  padding: 12px 16px;
++  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
++  border: none;
++  color: white;
++  border-radius: 6px;
++  font-size: 14px;
++  font-weight: 600;
++  cursor: pointer;
++  transition: all 0.3s ease;
++}
++
++.btn-next-exercise:hover {
++  transform: translateY(-2px);
++  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
++}
++
++@media (max-width: 768px) {
++  .workout-card {
++    padding: 16px;
++  }
++
++  .completed-sets-grid {
++    grid-template-columns: 1fr;
++  }
++
++  .action-buttons {
++    flex-direction: column;
++  }
++
++  .btn-add-set,
++  .btn-next-exercise {
++    flex: 1 1 auto;
++  }
++}
++
+diff --git a/src/style/homepage.css b/src/style/homepage.css
+index 3aff815..6f83d67 100644
+--- a/src/style/homepage.css
++++ b/src/style/homepage.css
+@@ -152,4 +152,138 @@
+   border-radius: 8px;
+ }
+ 
++.hp-workouts-section {
++  max-width: 800px;
++  margin: 60px auto;
++  padding: 0 20px;
++}
++
++.hp-workouts-section h2 {
++  font-size: 2rem;
++  font-weight: 700;
++  margin-bottom: 30px;
++  color: #fff;
++}
++
++.workouts-list {
++  display: flex;
++  flex-direction: column;
++  gap: 24px;
++}
++
++.no-workouts {
++  text-align: center;
++  padding: 60px 20px;
++  background: rgba(255, 107, 0, 0.05);
++  border: 1px dashed rgba(255, 107, 0, 0.3);
++  border-radius: 12px;
++}
++
++.no-workouts p {
++  font-size: 1.1rem;
++  color: #999;
++  margin-bottom: 20px;
++
++/* Modal Overlay */
++.modal-overlay {
++  position: fixed;
++  top: 0;
++  left: 0;
++  right: 0;
++  bottom: 0;
++  background: rgba(0, 0, 0, 0.7);
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  z-index: 1000;
++  padding: 20px;
++}
++
++.modal-content {
++  background: linear-gradient(135deg, #1a1f2e 0%, #0f1419 100%);
++  border-radius: 12px;
++  max-width: 600px;
++  width: 100%;
++  max-height: 90vh;
++  overflow-y: auto;
++  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
++}
++
++/* Exercises Grid */
++.exercises-grid {
++  display: grid;
++  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
++  gap: 16px;
++  margin-top: 20px;
++}
++
++.exercise-card {
++  background: linear-gradient(135deg, rgba(78, 205, 196, 0.08) 0%, rgba(68, 169, 137, 0.08) 100%);
++  border: 2px solid rgba(78, 205, 196, 0.2);
++  border-radius: 10px;
++  padding: 20px;
++  cursor: pointer;
++  transition: all 0.3s ease;
++  display: flex;
++  flex-direction: column;
++  gap: 12px;
++}
++
++.exercise-card:hover {
++  background: linear-gradient(135deg, rgba(78, 205, 196, 0.15) 0%, rgba(68, 169, 137, 0.15) 100%);
++  border-color: rgba(78, 205, 196, 0.5);
++  transform: translateY(-4px);
++  box-shadow: 0 8px 24px rgba(78, 205, 196, 0.2);
++}
++
++.exercise-card-header {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++}
++
++.exercise-card-header h4 {
++  margin: 0;
++  font-size: 15px;
++  font-weight: 600;
++  color: #7dd3fc;
++}
++
++.exercise-card-dot {
++  width: 12px;
++  height: 12px;
++  background: linear-gradient(135deg, #4ecdc4 0%, #44a989 100%);
++  border-radius: 50%;
++  flex-shrink: 0;
++}
++
++.exercise-card-info {
++  font-size: 12px;
++  color: #a0aec0;
++  margin: 0;
++}
++
++.exercise-card-btn {
++  padding: 10px 16px;
++  background: linear-gradient(135deg, #4ecdc4 0%, #44a989 100%);
++  border: none;
++  color: white;
++  border-radius: 6px;
++  font-size: 13px;
++  font-weight: 600;
++  cursor: pointer;
++  transition: all 0.3s ease;
++  align-self: flex-start;
++}
++
++.exercise-card-btn:hover {
++  transform: translateY(-2px);
++  box-shadow: 0 4px 12px rgba(78, 205, 196, 0.4);
++}
++}
++
++.no-workouts .hp-primary {
++  display: inline-block;
++}
++
+ 
+diff --git a/src/utils/fetchMiddleware.js b/src/utils/fetchMiddleware.js
+new file mode 100644
+index 0000000..2eafe94
+--- /dev/null
++++ b/src/utils/fetchMiddleware.js
+@@ -0,0 +1,55 @@
++// Lightweight fetch middleware wrapper
++// - injects auth token from sessionStorage as Bearer Authorization header
++// - ensures JSON parsing when possible
++// - handles 401 by clearing session storage (caller can handle redirect)
++
++export async function fetchWithMiddleware(url, options = {}) {
++  const token = sessionStorage.getItem('authToken');
++
++  const defaultHeaders = {
++    'Content-Type': 'application/json',
++    ...(options.headers || {}),
++  };
++
++  if (token) {
++    defaultHeaders['Authorization'] = `Bearer ${token}`;
++  }
++
++  const opts = { ...options, headers: defaultHeaders };
++
++  const response = await fetch(url, opts);
++
++  if (response.status === 401) {
++    // Clear client-side auth state so the app can re-authenticate.
++    sessionStorage.removeItem('authToken');
++    sessionStorage.removeItem('userId');
++
++    // Dispatch a global event so AuthContext can logout/redirect
++    try {
++      window.dispatchEvent(new Event('auth-logout'));
++    } catch (e) {
++      // ignore if window isn't available
++    }
++
++    // Let caller decide what to do next (redirect/login)
++    const err = new Error('Unauthorized');
++    err.status = 401;
++    throw err;
++  }
++
++  // Try to parse JSON, fallback to text
++  const text = await response.text();
++  
++  // Log non-2xx responses for debugging
++  if (!response.ok) {
++    console.warn(`fetchMiddleware: ${response.status} ${response.statusText}`, { url, text });
++  }
++  
++  try {
++    return JSON.parse(text);
++  } catch (e) {
++    return text;
++  }
++}
++
++export default fetchWithMiddleware;
+diff --git a/src/utils/rapidApi.js b/src/utils/rapidApi.js
+new file mode 100644
+index 0000000..2a84b01
+--- /dev/null
++++ b/src/utils/rapidApi.js
+@@ -0,0 +1,37 @@
++// IMPORTANT: Replace 'YOUR_RAPIDAPI_KEY_HERE' with your actual RapidAPI Key.
++// For production, strongly consider using environment variables (e.g., process.env.REACT_APP_RAPIDAPI_KEY)
++// and proxying these requests through your backend to keep your API key secure.
++const RAPIDAPI_KEY = 'YOUR_RAPIDAPI_KEY_HERE';
++const RAPIDAPI_HOST = 'exercisedb.p.rapidapi.com';
++
++export const getExerciseImageUrl = async (exerciseName) => {
++  if (!exerciseName) {
++    console.warn("Exercise name is required to fetch image.");
++    return null;
++  }
++
++  // ExerciseDB often uses lowercase and URL-encoded names for image lookups.
++  // NOTE: The correct endpoint for getting an exercise by name which includes the gifUrl is not /image.
++  // We will use the /name/{exerciseName} endpoint which returns the full exercise object including 'gifUrl'.
++  const encodedExerciseName = encodeURIComponent(exerciseName.toLowerCase());
++  const url = `https://exercisedb.p.rapidapi.com/exercises/name/${encodedExerciseName}`;
++
++  try {
++    const response = await fetch(url, {
++      method: 'GET',
++      headers: {
++        'x-rapidapi-key': RAPIDAPI_KEY,
++        'x-rapidapi-host': RAPIDAPI_HOST
++      }
++    });
++
++    if (!response.ok) return null; // Fail silently if image not found
++
++    const data = await response.json();
++    // The API returns an array, we'll take the first result's gifUrl.
++    return data && data.length > 0 ? data[0].gifUrl : null;
++  } catch (error) {
++    console.error(`Network error fetching image for ${exerciseName}:`, error);
++    return null;
++  }
++};
+\ No newline at end of file
+diff --git a/workout_app.sql b/workout_app.sql
+index 5905a84..1e1b681 100644
+--- a/workout_app.sql
++++ b/workout_app.sql
+@@ -3,7 +3,7 @@
+ -- https://www.phpmyadmin.net/
+ --
+ -- Host: 127.0.0.1
+--- Generation Time: Oct 24, 2025 at 05:12 PM
++-- Generation Time: Nov 20, 2025 at 04:24 AM
+ -- Server version: 10.4.32-MariaDB
+ -- PHP Version: 8.2.12
+ 
+@@ -48,6 +48,14 @@ CREATE TABLE `categories` (
+   `description` text DEFAULT NULL
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+ 
++--
++-- Dumping data for table `categories`
++--
++
++INSERT INTO `categories` (`id`, `name`, `description`) VALUES
++(4, 'General', 'General exercises'),
++(6, 'Weighted', NULL);
++
+ -- --------------------------------------------------------
+ 
+ --
+@@ -63,6 +71,31 @@ CREATE TABLE `plan_workouts` (
+   `reps` int(11) DEFAULT NULL
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+ 
++--
++-- Dumping data for table `plan_workouts`
++--
++
++INSERT INTO `plan_workouts` (`id`, `plan_id`, `workout_id`, `day_of_week`, `sets`, `reps`) VALUES
++(4, 8, 11, 'Monday', 3, 10),
++(5, 8, 12, 'Monday', 3, 10),
++(6, 9, 13, 'Monday', 3, 10),
++(7, 10, 11, 'Monday', 3, 10),
++(8, 10, 14, 'Monday', 3, 10),
++(9, 10, 15, 'Monday', 3, 10),
++(13, 15, 17, 'Monday', 3, 10),
++(14, 16, 11, 'Monday', 3, 10),
++(15, 16, 14, 'Tuesday', 3, 10),
++(16, 17, 18, 'Monday', 3, 10),
++(17, 18, 19, 'Monday', 3, 10),
++(18, 19, 19, 'Monday', 3, 10),
++(19, 20, 20, 'Monday', 3, 10),
++(20, 21, 21, 'Monday', 3, 10),
++(21, 22, 22, 'Monday', 3, 10),
++(22, 22, 20, 'Tuesday', 3, 10),
++(23, 22, 23, 'Wednesday', 3, 10),
++(24, 23, 24, 'Monday', 3, 10),
++(25, 24, 21, 'Monday', 3, 10);
++
+ -- --------------------------------------------------------
+ 
+ --
+@@ -73,7 +106,7 @@ CREATE TABLE `progress` (
+   `id` int(11) NOT NULL,
+   `user_id` int(11) NOT NULL,
+   `plan_id` int(11) NOT NULL,
+-  `date` date NOT NULL,
++  `completed_at` timestamp NOT NULL DEFAULT current_timestamp(),
+   `weight_kg` decimal(5,2) DEFAULT NULL,
+   `calories_burned` int(11) DEFAULT NULL,
+   `notes` text DEFAULT NULL
+@@ -102,7 +135,9 @@ CREATE TABLE `users` (
+ --
+ 
+ INSERT INTO `users` (`id`, `username`, `email`, `password`, `age`, `gender`, `height_cm`, `weight_kg`, `created_at`) VALUES
+-(3, 'ern', 'ernnatividad10@gmail.com', '$2y$10$kYHrSJwBb/hI7/Hg0c4m9.Sj1I.6KkHAcZncNTL7LxfpIOHHZsXEK', 20, 'Male', 123.00, 23.00, '2025-10-24 13:33:51');
++(3, 'ern', 'ernnatividad10@gmail.com', '$2y$10$kYHrSJwBb/hI7/Hg0c4m9.Sj1I.6KkHAcZncNTL7LxfpIOHHZsXEK', 25, 'Male', 175.00, 75.00, '2025-10-24 13:33:51'),
++(8, 'testuser', 'test@example.com', '$2a$10$dfnWAsiIJnR0ra1fAf1.budYkBgvRcxfarYl7l8Goz3Gd/ifXkBF6', NULL, NULL, NULL, NULL, '2025-11-19 04:16:28'),
++(11, 'asd', 'rod20@gmail.com', '$2a$10$DWv4Ceqi3A4xZm7A/.II9efC3gDvL5phDcDcZIotzkSDWjbbXBEo.', 20, 'Male', 170.00, 98.00, '2025-11-19 15:07:28');
+ 
+ -- --------------------------------------------------------
+ 
+@@ -120,6 +155,26 @@ CREATE TABLE `workouts` (
+   `difficulty` enum('Beginner','Intermediate','Advanced') DEFAULT NULL
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+ 
++--
++-- Dumping data for table `workouts`
++--
++
++INSERT INTO `workouts` (`id`, `category_id`, `name`, `description`, `equipment`, `muscle_group`, `difficulty`) VALUES
++(11, 4, 'band alternating biceps curl', NULL, 'band', 'upper arms', 'Beginner'),
++(12, 4, 'band assisted wheel rollerout', NULL, 'band', 'waist', 'Beginner'),
++(13, 4, 'tire flip', NULL, 'tire', 'upper legs', 'Beginner'),
++(14, 4, 'band assisted pull-up', NULL, 'band', 'back', 'Beginner'),
++(15, 4, 'band close-grip pulldown', NULL, 'band', 'back', 'Beginner'),
++(16, 6, 'assisted hanging knee raise with throw down', NULL, 'assisted', 'waist', 'Advanced'),
++(17, 6, 'ski ergometer', NULL, 'skierg machine', 'upper arms', 'Beginner'),
++(18, 6, 'dumbbell bench press', NULL, 'dumbbell', 'chest', 'Beginner'),
++(19, 6, 'band alternating v-up', NULL, 'band', 'waist', 'Intermediate'),
++(20, 6, 'barbell close-grip bench press', NULL, 'barbell', 'upper arms', 'Intermediate'),
++(21, 6, 'walk elliptical cross trainer', NULL, 'elliptical machine', 'cardio', 'Beginner'),
++(22, 6, 'barbell alternate biceps curl', NULL, 'barbell', 'upper arms', 'Beginner'),
++(23, 6, 'barbell curl', NULL, 'barbell', 'upper arms', 'Beginner'),
++(24, 6, 'barbell bench press', NULL, 'barbell', 'chest', 'Intermediate');
++
+ -- --------------------------------------------------------
+ 
+ --
+@@ -134,6 +189,25 @@ CREATE TABLE `workout_plans` (
+   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+ 
++--
++-- Dumping data for table `workout_plans`
++--
++
++INSERT INTO `workout_plans` (`id`, `user_id`, `title`, `goal`, `created_at`) VALUES
++(8, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-18 12:55:37'),
++(9, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-18 13:11:19'),
++(10, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-18 14:31:51'),
++(15, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-19 16:21:51'),
++(16, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 02:57:23'),
++(17, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 02:57:46'),
++(18, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:00:05'),
++(19, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:01:18'),
++(20, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:04:19'),
++(21, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:06:23'),
++(22, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:09:42'),
++(23, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:12:43'),
++(24, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:17:58');
++
+ --
+ -- Indexes for dumped tables
+ --
+@@ -203,13 +277,13 @@ ALTER TABLE `bmi_records`
+ -- AUTO_INCREMENT for table `categories`
+ --
+ ALTER TABLE `categories`
+-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
++  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+ 
+ --
+ -- AUTO_INCREMENT for table `plan_workouts`
+ --
+ ALTER TABLE `plan_workouts`
+-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
++  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+ 
+ --
+ -- AUTO_INCREMENT for table `progress`
+@@ -221,19 +295,19 @@ ALTER TABLE `progress`
+ -- AUTO_INCREMENT for table `users`
+ --
+ ALTER TABLE `users`
+-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
++  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+ 
+ --
+ -- AUTO_INCREMENT for table `workouts`
+ --
+ ALTER TABLE `workouts`
+-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
++  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+ 
+ --
+ -- AUTO_INCREMENT for table `workout_plans`
+ --
+ ALTER TABLE `workout_plans`
+-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
++  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+ 
+ --
+ -- Constraints for dumped tables

@@ -195,7 +195,7 @@ const InformationSetup = () => {
       console.log('planData.plan_title:', planData.plan_title);
 
       // Send the data to your Node.js endpoint using the middleware (attaches auth token)
-      const result = await fetchWithMiddleware('http://localhost:5000/api/workouts/save', {
+      const result = await fetchWithMiddleware('/api/workouts/save', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

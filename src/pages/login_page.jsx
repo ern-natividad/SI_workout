@@ -21,7 +21,7 @@ function LoginPage() {
     password: ''
   });
 
-  const apiUrl = 'http://localhost:5000/api/auth/login';
+  const apiUrl = '/api/auth/login';
 
   const handleSubmit = async (e) => {
     e.preventDefault();

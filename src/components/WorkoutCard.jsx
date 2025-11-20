@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import '../style/WorkoutCard.css';
 
 import fetchWithMiddleware from '../utils/fetchMiddleware';
+import { useAuth } from './AuthContext';
 
 const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComplete, exerciseIndex, exerciseCount, onNextExercise }) => {
     const [sets, setSets] = useState(3);
@@ -25,6 +26,23 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
             setUseBodyweight(false);
             setWeightValue('');
         }
+    };
+
+    const { userWeight } = useAuth();
+
+    const estimateCaloriesFromExercises = (exercises) => {
+        // Heuristic: calories approximated from total lifted volume (reps * weight)
+        // calories = totalVolumeKg * 0.1  (simple heuristic: 1000 kg lifted -> ~100 kcal)
+        let totalVolumeKg = 0;
+        for (const ex of exercises) {
+            if (!ex.sets || ex.sets.length === 0) continue;
+            for (const s of ex.sets) {
+                const reps = Number(s.reps) || 0;
+                const weight = s.weightType === 'bodyweight' ? (Number(userWeight) || 0) : (Number(s.weightValue) || 0);
+                totalVolumeKg += reps * weight;
+            }
+        }
+        return Math.round(totalVolumeKg * 0.1);
     };
 
     const handleNextExercise = async () => {
@@ -55,9 +73,12 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
             }
 
             try {
-                // Call the same completion endpoint to create new plan
+                const calories = estimateCaloriesFromExercises(allExercises);
+                // Use the user's weight if available, otherwise null
+                const weightKg = Number(userWeight) || null;
+
                 await fetchWithMiddleware(
-                    'http://localhost:5000/api/workouts/complete',
+                    '/api/workouts/complete',
                     {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -69,10 +90,13 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
                                 sets_completed: ex.totalSets,
                             })),
                             completed_at: new Date().toISOString(),
+                            weight_kg: weightKg,
+                            calories_burned: calories,
                         }),
                     }
                 );
-                alert('Workout completed! 🎉 New workout plan created.');
+
+                alert('Workout completed! 🎉 Progress recorded.' + (calories ? ` Estimated ${calories} kcal burned.` : ''));
                 if (onWorkoutComplete) {
                     onWorkoutComplete();
                 }
@@ -119,9 +143,12 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
 
         setIsSaving(true);
         try {
-            // Save workout completion to database
+            // Estimate calories similarly to handleNextExercise
+            const calories = estimateCaloriesFromExercises(allExercises);
+            const weightKg = Number(userWeight) || null;
+
             const response = await fetchWithMiddleware(
-                'http://localhost:5000/api/workouts/complete',
+                '/api/workouts/complete',
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -133,12 +160,14 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
                             sets_completed: ex.totalSets,
                         })),
                         completed_at: new Date().toISOString(),
+                        weight_kg: weightKg,
+                        calories_burned: calories,
                     }),
                 }
             );
 
             if (response && response.success) {
-                alert('Workout completed and saved! 🎉');
+                alert('Workout completed and saved! 🎉 Progress recorded.' + (calories ? ` Estimated ${calories} kcal burned.` : ''));
                 if (onWorkoutComplete) {
                     onWorkoutComplete();
                 }
@@ -265,14 +294,6 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
                                     <option>kg</option>
                                     <option>lb</option>
                                 </select>
-                                
-                                <input 
-                                    type="number" 
-                                    value={weightValue}
-                                    onChange={(e) => setWeightValue(e.target.value)}
-                                    placeholder="0"
-                                    min="0"
-                                />
                             </>
                         )}
                         

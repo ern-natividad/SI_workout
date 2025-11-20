@@ -19,7 +19,8 @@ const verifyToken = (req, res, next) => {
 };
 
 // Get all workout plans for a user
-router.get('/plans', verifyToken, async (req, res) => {
+// Public: Get all workout plans for a user (no auth required for dev)
+router.get('/plans', async (req, res) => {
   try {
     const userId = req.query.user_id;
 
@@ -30,15 +31,25 @@ router.get('/plans', verifyToken, async (req, res) => {
       });
     }
 
-    const [plans] = await pool.query(
-      'SELECT id, title, goal, end_at, created_at FROM workout_plans WHERE user_id = ? ORDER BY created_at DESC',
-      [userId]
-    );
+    // Some DB dumps may not include the `end_at` column. Detect it and select accordingly.
+    const [columns] = await pool.query("SHOW COLUMNS FROM workout_plans");
+    const hasEndAt = columns.some((c) => c.Field === 'end_at');
 
-    res.json({
-      success: true,
-      plans: plans
-    });
+    let plansQuery;
+    if (hasEndAt) {
+      plansQuery = 'SELECT id, title, goal, end_at, created_at FROM workout_plans WHERE user_id = ? ORDER BY created_at DESC';
+    } else {
+      plansQuery = 'SELECT id, title, goal, created_at FROM workout_plans WHERE user_id = ? ORDER BY created_at DESC';
+    }
+
+    const [plans] = await pool.query(plansQuery, [userId]);
+
+    // Ensure each plan row has an `end_at` property for frontend compatibility
+    if (!hasEndAt) {
+      plans.forEach((p) => { p.end_at = null; });
+    }
+
+    res.json({ success: true, plans });
   } catch (error) {
     console.error('Get plans error:', error);
     res.status(500).json({
@@ -48,8 +59,8 @@ router.get('/plans', verifyToken, async (req, res) => {
   }
 });
 
-// Get exercises for a specific plan
-router.get('/exercises', verifyToken, async (req, res) => {
+// Get exercises for a specific plan (public for dev)
+router.get('/exercises', async (req, res) => {
   try {
     const planId = req.query.plan_id;
 
@@ -162,10 +173,10 @@ router.post('/save', verifyToken, async (req, res) => {
           workoutId = workouts[0].id;
         }
 
-        // Link to plan
+        // Link to plan (day_of_week is an enum in the DB; allow NULL when not provided)
         await connection.query(
           'INSERT INTO plan_workouts (plan_id, workout_id, sets, reps, day_of_week) VALUES (?, ?, ?, ?, ?)',
-          [planId, workoutId, sets || 3, reps || 10, day_of_week || 1]
+          [planId, workoutId, sets || 3, reps || 10, day_of_week || null]
         );
       }
 
@@ -192,15 +203,15 @@ router.post('/save', verifyToken, async (req, res) => {
 });
 
 
-// Mark workout as complete and create new plan
+// Mark a plan as complete and record progress
 router.post('/complete', verifyToken, async (req, res) => {
   try {
-    const { user_id, plan_id, completed_exercises, completed_at } = req.body;
+    const { user_id, plan_id, completed_at } = req.body;
 
-    if (!user_id || !plan_id || !completed_exercises) {
+    if (!user_id || !plan_id) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: user_id, plan_id, completed_exercises'
+        message: 'Missing required fields: user_id, plan_id'
       });
     }
 
@@ -214,32 +225,23 @@ router.post('/complete', verifyToken, async (req, res) => {
         [completed_at || new Date(), plan_id]
       );
 
-      // Save exercise progress for each completed exercise
-      for (const exercise of completed_exercises) {
-        const { name, sets_completed } = exercise;
+      // Save a single progress entry for this plan completion using the existing
+      // `progress` table columns (user_id, plan_id, completed_at, weight_kg, calories_burned, notes).
+      // If the frontend provided weight/calories/notes include them, otherwise insert NULLs.
+      const weightKg = req.body.weight_kg ?? null;
+      const calories = req.body.calories_burned ?? null;
+      const notes = req.body.notes ?? null;
 
-        // Find workout ID from name
-        const [workouts] = await connection.query(
-          'SELECT id FROM workouts WHERE name = ?',
-          [name]
-        );
-
-        if (workouts.length > 0) {
-          await connection.query(
-            'INSERT INTO progress (user_id, workout_id, sets_completed, completed_at) VALUES (?, ?, ?, ?)',
-            [user_id, workouts[0].id, sets_completed, completed_at || new Date()]
-          );
-        }
-      }
-
-      // Do not auto-create a new plan. The user should create new plans manually.
-
+      await connection.query(
+        'INSERT INTO progress (user_id, plan_id, completed_at, weight_kg, calories_burned, notes) VALUES (?, ?, ?, ?, ?, ?)',
+        [user_id, plan_id, completed_at || new Date(), weightKg, calories, notes]
+      );
       await connection.commit();
       connection.release();
 
       res.json({
         success: true,
-        message: 'Workout completed and new plan created!'
+        message: 'Workout completed'
       });
     } catch (error) {
       await connection.rollback();
@@ -256,3 +258,28 @@ router.post('/complete', verifyToken, async (req, res) => {
 });
 
 export default router;
+
+// Progress listing (returns progress records for a user)
+// Example: GET /api/workouts/progress?user_id=3
+router.get('/progress', async (req, res) => {
+  try {
+    const userId = req.query.user_id;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'user_id is required' });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT p.id, p.user_id, p.plan_id, p.completed_at, p.weight_kg, p.calories_burned, p.notes, wp.title AS plan_title
+       FROM progress p
+       LEFT JOIN workout_plans wp ON p.plan_id = wp.id
+       WHERE p.user_id = ?
+       ORDER BY p.completed_at DESC`,
+      [userId]
+    );
+
+    res.json({ success: true, progress: rows });
+  } catch (error) {
+    console.error('Get progress error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});

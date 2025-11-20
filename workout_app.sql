@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 20, 2025 at 04:24 AM
+-- Generation Time: Nov 20, 2025 at 05:40 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -94,7 +94,11 @@ INSERT INTO `plan_workouts` (`id`, `plan_id`, `workout_id`, `day_of_week`, `sets
 (22, 22, 20, 'Tuesday', 3, 10),
 (23, 22, 23, 'Wednesday', 3, 10),
 (24, 23, 24, 'Monday', 3, 10),
-(25, 24, 21, 'Monday', 3, 10);
+(25, 24, 21, 'Monday', 3, 10),
+(26, 25, 21, 'Monday', 3, 10),
+(27, 26, 25, 'Monday', 3, 10),
+(28, 27, 21, 'Monday', 3, 10),
+(29, 28, 26, 'Monday', 3, 10);
 
 -- --------------------------------------------------------
 
@@ -173,7 +177,9 @@ INSERT INTO `workouts` (`id`, `category_id`, `name`, `description`, `equipment`,
 (21, 6, 'walk elliptical cross trainer', NULL, 'elliptical machine', 'cardio', 'Beginner'),
 (22, 6, 'barbell alternate biceps curl', NULL, 'barbell', 'upper arms', 'Beginner'),
 (23, 6, 'barbell curl', NULL, 'barbell', 'upper arms', 'Beginner'),
-(24, 6, 'barbell bench press', NULL, 'barbell', 'chest', 'Intermediate');
+(24, 6, 'barbell bench press', NULL, 'barbell', 'chest', 'Intermediate'),
+(25, 6, 'assisted triceps dip (kneeling)', NULL, 'leverage machine', 'upper arms', 'Beginner'),
+(26, 6, 'stationary bike run v. 3', NULL, 'stationary bike', 'cardio', 'Beginner');
 
 -- --------------------------------------------------------
 
@@ -186,27 +192,32 @@ CREATE TABLE `workout_plans` (
   `user_id` int(11) NOT NULL,
   `title` varchar(100) NOT NULL,
   `goal` varchar(255) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `end_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `workout_plans`
 --
 
-INSERT INTO `workout_plans` (`id`, `user_id`, `title`, `goal`, `created_at`) VALUES
-(8, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-18 12:55:37'),
-(9, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-18 13:11:19'),
-(10, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-18 14:31:51'),
-(15, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-19 16:21:51'),
-(16, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 02:57:23'),
-(17, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 02:57:46'),
-(18, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:00:05'),
-(19, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:01:18'),
-(20, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:04:19'),
-(21, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:06:23'),
-(22, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:09:42'),
-(23, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:12:43'),
-(24, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:17:58');
+INSERT INTO `workout_plans` (`id`, `user_id`, `title`, `goal`, `created_at`, `end_at`) VALUES
+(8, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-18 12:55:37', NULL),
+(9, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-18 13:11:19', NULL),
+(10, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-18 14:31:51', NULL),
+(15, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-19 16:21:51', NULL),
+(16, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 02:57:23', NULL),
+(17, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 02:57:46', NULL),
+(18, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:00:05', NULL),
+(19, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:01:18', NULL),
+(20, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:04:19', NULL),
+(21, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:06:23', NULL),
+(22, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:09:42', NULL),
+(23, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:12:43', NULL),
+(24, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:17:58', NULL),
+(25, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:28:34', NULL),
+(26, 3, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:38:06', NULL),
+(27, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 03:53:02', NULL),
+(28, 11, 'My Workout Plan', 'Custom workout plan', '2025-11-20 04:11:10', NULL);
 
 --
 -- Indexes for dumped tables
@@ -283,7 +294,7 @@ ALTER TABLE `categories`
 -- AUTO_INCREMENT for table `plan_workouts`
 --
 ALTER TABLE `plan_workouts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
 
 --
 -- AUTO_INCREMENT for table `progress`
@@ -301,13 +312,13 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `workouts`
 --
 ALTER TABLE `workouts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
 
 --
 -- AUTO_INCREMENT for table `workout_plans`
 --
 ALTER TABLE `workout_plans`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- Constraints for dumped tables
