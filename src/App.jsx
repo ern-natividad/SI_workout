@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 
 import Header from './components/Header';
 import HeaderUser from './components/HeaderUser';
+import { useAuth } from './components/AuthContext';
 
 import LandingPage from './pages/landing_page';
 import SignUp from './pages/SignUp';
@@ -22,15 +23,9 @@ function App() {
   const location = useLocation();
 
   const path = location.pathname.toLowerCase();
-  const [isLoggedIn, setIsLoggedIn] = React.useState(
-    Boolean(localStorage.getItem('userToken'))
-  );
-
-  React.useEffect(() => {
-    const handleStorage = () => setIsLoggedIn(Boolean(localStorage.getItem('userToken')));
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
+  // Use AuthContext instead of localStorage for logged-in state
+  const { isAuthenticated } = useAuth();
+  const isLoggedIn = Boolean(isAuthenticated);
 
   // Pages that show NO header
   const noHeader = [

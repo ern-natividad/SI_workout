@@ -2,19 +2,15 @@ import React, { useState, useEffect } from "react";
 import "../style/information_setup.css";
 import { useNavigate } from "react-router-dom";
 import { fetchData, excerciseOptions } from "../utils/fetchData";
+import fetchWithMiddleware from "../utils/fetchMiddleware";
+import { useAuth } from "../components/AuthContext";
 
 const InformationSetup = () => {
   const navigate = useNavigate();
+  const { userId: authUserId, isAuthenticated } = useAuth();
 
-  // Step navigation
+  // Step navigation (starting at 1 for equipment selection)
   const [step, setStep] = useState(1);
-
-  const [formData, setFormData] = useState({
-    height: "",
-    weight: "",
-    age: "",
-    gender: "Male",
-  });
 
   // Equipment state
   const [equipmentList, setEquipmentList] = useState([]);
@@ -43,7 +39,8 @@ const InformationSetup = () => {
   useEffect(() => {
     const fetchTargets = async () => {
       try {
-        const targetData = await fetchData('https://exercisedb.p.rapidapi.com/exercises/targetList', excerciseOptions);
+        const targetData = await fetchData('https://exercisedb.p.rapidapi.com/exercises/bodyPartList', excerciseOptions);
+        //console.log('Fetched Body Part List:', targetData);
         setTargetList(targetData);
       } catch (error) {
         console.error('Error fetching targets:', error);
@@ -52,29 +49,72 @@ const InformationSetup = () => {
     fetchTargets();
   }, []);
 
+  // --- MODIFIED useEffect FOR "AND" FILTERING LOGIC WITH FALLBACK ---
   useEffect(() => {
     const fetchExercises = async () => {
-      if (selectedEquipment.length === 0 && selectedTargets.length === 0) return;
+      // If no filters are selected, show an empty list immediately.
+      if (selectedEquipment.length === 0 && selectedTargets.length === 0) {
+        return setExerciseList([]);
+      }
+
       try {
         let exercises = [];
-        for (const equipment of selectedEquipment) {
-          const equipmentExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/equipment/${equipment}`, excerciseOptions);
-          exercises = [...exercises, ...equipmentExercises];
+        let uniqueExercises = [];
+
+        // Variable to hold the equipment-only list for fallback
+        let equipmentOnlyExercises = []; 
+
+        if (selectedEquipment.length > 0) {
+          // 1. Primary Fetch: Fetch all exercises matching the selected equipment
+          for (const equipment of selectedEquipment) {
+            const equipmentExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/equipment/${equipment}`, excerciseOptions);
+            exercises = [...exercises, ...equipmentExercises];
+          }
+          
+          // Remove duplicates to get the equipment-only list
+          equipmentOnlyExercises = exercises.filter((exercise, index, self) =>
+            index === self.findIndex((e) => e.id === exercise.id)
+          );
+          
+          // Start with the equipment-only list for initial filtering
+          uniqueExercises = equipmentOnlyExercises; 
+
+          // 2. Apply the secondary filter (AND logic) IF targets are also selected
+          if (selectedTargets.length > 0) {
+            const targetFilteredExercises = uniqueExercises.filter(exercise =>
+              // Check if the exercise's bodyPart is included in the user's selectedTargets
+              selectedTargets.includes(exercise.bodyPart)
+            );
+
+            // 3. FALLBACK LOGIC: If the AND filter yields no results, revert to showing equipment-only exercises.
+            if (targetFilteredExercises.length === 0) {
+              uniqueExercises = equipmentOnlyExercises; // Revert to equipment-only list
+              console.log('No exercises found matching BOTH criteria. Falling back to Equipment-only exercises.');
+            } else {
+              uniqueExercises = targetFilteredExercises; // Use the successful AND filter result
+            }
+          }
+        } else if (selectedTargets.length > 0) {
+          // If ONLY targets are selected (and equipment is empty), fetch only by target.
+          for (const target of selectedTargets) {
+            const targetExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/bodyPart/${target}`, excerciseOptions);
+            exercises = [...exercises, ...targetExercises];
+          }
+          // Remove duplicates
+          uniqueExercises = exercises.filter((exercise, index, self) =>
+            index === self.findIndex((e) => e.id === exercise.id)
+          );
         }
-        for (const target of selectedTargets) {
-          const targetExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/target/${target}`, excerciseOptions);
-          exercises = [...exercises, ...targetExercises];
-        }
-        const uniqueExercises = exercises.filter((exercise, index, self) =>
-          index === self.findIndex((e) => e.id === exercise.id)
-        );
+        
+        // 4. Update the list
         setExerciseList(uniqueExercises);
       } catch (error) {
-        console.error('Error fetching exercises:', error);
+        console.error('Error fetching and filtering exercises:', error);
       }
     };
     fetchExercises();
   }, [selectedEquipment, selectedTargets]);
+  // --- END OF MODIFIED useEffect ---
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -105,71 +145,84 @@ const InformationSetup = () => {
     );
   };
 
-  const nextStep = () => setStep((prev) => Math.min(prev + 1, 4));
+  const nextStep = () => setStep((prev) => Math.min(prev + 1, 3));
   const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Final data:", formData);
-    alert("Profile setup complete!");
-    navigate("/homepage");
+    
+    try {
+      // Use AuthContext's userId (session-managed) rather than localStorage
+      const userId = authUserId;
+
+      console.debug('handleSubmit - userId:', userId, 'isAuthenticated:', isAuthenticated);
+      console.debug('handleSubmit - selectedExercises:', selectedExercises);
+      console.debug('handleSubmit - exerciseList length:', exerciseList.length);
+
+      if (!userId) {
+        alert('Please log in to save your workout plan');
+        navigate('/loginpage'); // Redirect to login if not logged in
+        return;
+      }
+
+      if (selectedExercises.length === 0) {
+        alert('Please select at least one exercise before saving');
+        return;
+      }
+
+      // Create a workout plan with selected exercises
+      const planData = {
+        user_id: parseInt(userId),
+        plan_title: 'My Workout Plan',
+        goal: 'Custom workout plan',
+        exercises: exerciseList
+          .filter(exercise => selectedExercises.includes(exercise.id))
+          .map((exercise, index) => ({
+            name: exercise.name,
+            equipment: exercise.equipment,
+            bodyPart: exercise.bodyPart,
+            difficulty: exercise.difficulty || 'beginner',
+            sets: 3,
+            reps: 10,
+            day_of_week: (index % 7) + 1,
+            weight_type: 'weighted'
+          }))
+      };
+      
+      console.debug('Sending planData:', planData);
+      console.log('planData exercises count:', planData.exercises.length);
+      console.log('planData.user_id:', planData.user_id, 'type:', typeof planData.user_id);
+      console.log('planData.plan_title:', planData.plan_title);
+
+      // Send the data to your Node.js endpoint using the middleware (attaches auth token)
+      const result = await fetchWithMiddleware('http://localhost:5000/api/workouts/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(planData)
+      });
+      
+      console.debug('saveWorkoutPlan result:', result);
+      
+      // If middleware returns an object, check for success
+       if (result && result.success) {
+         alert('Workout plan saved successfully!');
+         navigate("/homepage");
+       } else {
+         const errorMsg = (result && result.message) || 'Unknown error';
+         console.error('saveWorkoutPlan failed:', errorMsg, result);
+         alert('Failed to save workout plan: ' + errorMsg);
+       }
+    } catch (error) {
+      console.error('Error saving workout plan:', error);
+      alert('Failed to save workout plan. Please try again.');
+    }
   };
 
   const renderStep = () => {
     switch (step) {
       case 1:
-        return (
-          <div className="form-step">
-            <div className="form-row">
-              <div className="form-half">
-                <label>Height (cm)</label>
-                <input
-                  type="number"
-                  name="height"
-                  value={formData.height}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div className="form-half">
-                <label>Weight (kg)</label>
-                <input
-                  type="number"
-                  name="weight"
-                  value={formData.weight}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-half">
-                <label>Age</label>
-                <input
-                  type="number"
-                  name="age"
-                  value={formData.age}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div className="form-half">
-                <label>Gender</label>
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 2:
         return (
           <div className="step-placeholder">
             <p>Select your <span>equipment</span> here.</p>
@@ -187,7 +240,7 @@ const InformationSetup = () => {
           </div>
         );
 
-      case 3:
+      case 2:
         return (
           <div className="step-placeholder">
             <p>Choose target <span>muscle groups</span>.</p>
@@ -205,7 +258,7 @@ const InformationSetup = () => {
           </div>
         );
 
-      case 4:
+      case 3:
         return (
           <div className="step-placeholder">
             <p>Finalize your <span>exercise plan</span>.</p>
@@ -241,14 +294,14 @@ const InformationSetup = () => {
       <div className="info-card">
         {/* Progress Steps */}
         <div className="steps">
-          {[1, 2, 3, 4].map((num) => (
+          {[1, 2, 3].map((num) => (
             <div
               key={num}
               className={`step ${step === num ? "active" : ""}`}
             >
               <div className="circle">{num}</div>
               <span className="label">
-                {["Information", "Equipment", "Muscles", "Exercises"][num - 1]}
+                {["Equipment", "Muscles", "Exercises"][num - 1]}
               </span>
             </div>
           ))}
@@ -263,7 +316,7 @@ const InformationSetup = () => {
                 Previous
               </button>
             )}
-            {step < 4 && (
+            {step < 3 && (
               <button type="button" className="next-btn" onClick={nextStep}>
                 Continue
               </button>

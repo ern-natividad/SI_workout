@@ -2,10 +2,12 @@ import React from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import useForm from '../components/useForm';
+import { useAuth } from '../components/AuthContext';
 import '../style/log-in.css'; 
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const { 
     formData, 
     handleChange, 
@@ -19,7 +21,7 @@ function LoginPage() {
     password: ''
   });
 
-  const apiUrl = 'http://localhost/react-api/API/login.php';
+  const apiUrl = 'http://localhost:5000/api/auth/login';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,10 +31,19 @@ function LoginPage() {
     try {
       const response = await axios.post(apiUrl, formData);
 
-      if (response.data.status === 'success') {
+      if (response.data.success) {
         setMessage(`Welcome back, ${response.data.username}!`);
-        localStorage.setItem('userToken', response.data.token);
-        localStorage.setItem('username', response.data.username);
+        console.log('Login response:', response.data);
+        // Also inform AuthContext about the login so sessionStorage + context state are set
+        // `user_id` is returned by the API and matches AuthContext.login(id, token)
+        if (response.data.user_id) {
+          console.log('Calling login with:', response.data.user_id, response.data.weight, response.data.height);
+          login(response.data.user_id, response.data.token, response.data.weight, response.data.height);
+        } else {
+          // Fallback: set a mock user id if API didn't return one
+          login(1, response.data.token);
+        }
+
         resetForm();
         navigate('/homepage');
       } else {
