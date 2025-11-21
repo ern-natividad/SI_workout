@@ -203,10 +203,12 @@ router.post('/save', verifyToken, async (req, res) => {
 });
 
 
-// Mark a plan as complete and record progress
+// Record progress for a workout session. If `mark_plan_complete` is true the
+// plan will be closed (end_at set). Otherwise only a progress row is inserted.
 router.post('/complete', verifyToken, async (req, res) => {
   try {
-    const { user_id, plan_id, completed_at } = req.body;
+    const { user_id, plan_id, completed_at, mark_plan_complete } = req.body;
+    console.log('POST /api/workouts/complete called with:', { user_id, plan_id, mark_plan_complete });
 
     if (!user_id || !plan_id) {
       return res.status(400).json({
@@ -219,15 +221,15 @@ router.post('/complete', verifyToken, async (req, res) => {
     await connection.beginTransaction();
 
     try {
-      // Update plan status to completed with end_at timestamp
-      await connection.query(
-        'UPDATE workout_plans SET end_at = ? WHERE id = ?',
-        [completed_at || new Date(), plan_id]
-      );
+      // Optionally close the plan when requested by the client
+      if (mark_plan_complete) {
+        await connection.query(
+          'UPDATE workout_plans SET end_at = ? WHERE id = ?',
+          [completed_at || new Date(), plan_id]
+        );
+      }
 
-      // Save a single progress entry for this plan completion using the existing
-      // `progress` table columns (user_id, plan_id, completed_at, weight_kg, calories_burned, notes).
-      // If the frontend provided weight/calories/notes include them, otherwise insert NULLs.
+      // Save a single progress entry for this session (user_id, plan_id, completed_at, weight_kg, calories_burned, notes).
       const weightKg = req.body.weight_kg ?? null;
       const calories = req.body.calories_burned ?? null;
       const notes = req.body.notes ?? null;
@@ -236,12 +238,14 @@ router.post('/complete', verifyToken, async (req, res) => {
         'INSERT INTO progress (user_id, plan_id, completed_at, weight_kg, calories_burned, notes) VALUES (?, ?, ?, ?, ?, ?)',
         [user_id, plan_id, completed_at || new Date(), weightKg, calories, notes]
       );
+
       await connection.commit();
       connection.release();
 
       res.json({
         success: true,
-        message: 'Workout completed'
+        message: 'Workout progress recorded',
+        plan_closed: Boolean(mark_plan_complete)
       });
     } catch (error) {
       await connection.rollback();

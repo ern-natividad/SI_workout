@@ -8,6 +8,7 @@ dotenv.config();
 // Import routes
 import authRoutes from './routes/auth.js';
 import workoutRoutes from './routes/workouts.js';
+import exercisesRoutes from './routes/exercises.js';
 import pool from './config/database.js';
 
 const app = express();
@@ -26,6 +27,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/workouts', workoutRoutes);
+app.use('/api/exercises', exercisesRoutes);
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {

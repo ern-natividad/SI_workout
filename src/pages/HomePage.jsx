@@ -4,6 +4,10 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../components/AuthContext";
 import WorkoutCard from "../components/WorkoutCard";
 import fetchWithMiddleware from "../utils/fetchMiddleware";
+import { fetchData, excerciseOptions } from "../utils/fetchData";
+import placeholder from "../assets/background.jpg";
+import ExerciseImage from "../components/ExerciseImage";
+
 
 const HomePage = () => {
   const { userId, userWeight } = useAuth();
@@ -13,7 +17,11 @@ const HomePage = () => {
   const [selectedPlanId, setSelectedPlanId] = useState(null);
   const [exercises, setExercises] = useState([]);
   const [selectedExercise, setSelectedExercise] = useState(null);
+  const [search, setSearch] = useState([]);
   const [selectedExerciseIndex, setSelectedExerciseIndex] = useState(null);
+
+
+  
 
   useEffect(() => {
     if (!userId) return;
@@ -56,6 +64,161 @@ const HomePage = () => {
     fetchPlans();
   }, [userId]);
 
+  // When exercises are loaded, fetch images (gifUrl) from the exercise API proxy.
+  // Ordering: 1) prefer gifUrl from metadata endpoints, 2) try proxied exercisedb image by id (last-resort), 3) leave empty -> placeholder in ExerciseCard.
+  useEffect(() => {
+    if (!exercises || exercises.length === 0) return;
+    if (exercises.every((e) => e && e.gifUrl)) return; // already resolved (use gifUrl only)
+
+    let mounted = true;
+
+    const pickGif = (obj) => obj && (obj.gifUrl || '');
+
+    // Local curated fallbacks by bodyPart.
+    // Place image files in `public/bodyparts/<bodyPart>.jpg` (see /public/bodyparts/README.md)
+    // Example: public/bodyparts/chest.jpg
+    const LOCAL_BY_PART = {
+      chest: '/bodyparts/chest.jpg',
+      back: '/bodyparts/back.jpg',
+      legs: '/bodyparts/legs.jpg',
+      shoulders: '/bodyparts/shoulders.jpg',
+      'upper arms': '/bodyparts/upper_arms.jpg',
+      'lower arms': '/bodyparts/lower_arms.jpg',
+      'upper legs': '/bodyparts/upper_legs.jpg',
+      'lower legs': '/bodyparts/lower_legs.jpg',
+      core: '/bodyparts/core.jpg',
+      waist: '/bodyparts/waist.jpg',
+      neck: '/bodyparts/neck.jpg',
+      cardio: '/bodyparts/cardio.jpg',
+    };
+
+    const EXERCISE_DB_HOST = 'exercisedb.p.rapidapi.com';
+
+    // Query metadata by name and return a candidate gifUrl (or empty string)
+    const fetchOneImage = async (ex) => {
+      if (ex.gifUrl) return ex;
+      try {
+        // Send the raw exercise name to the server; the server will encode it
+        // when proxying to the upstream exercisedb API. Avoid double-encoding here.
+        const name = ex.name || '';
+        const data = await fetchWithMiddleware(`/api/exercises/name/${name}`, { method: 'GET' });
+
+        let candidate = '';
+        let upstreamId = null;
+        if (Array.isArray(data) && data.length > 0) {
+          candidate = pickGif(data[0]) || '';
+          upstreamId = data[0].id || null;
+        } else if (data && typeof data === 'object') {
+          candidate = pickGif(data) || '';
+          upstreamId = data.id || null;
+        }
+
+        // If metadata returned a candidate, prefer using the upstream/exercisedb id
+        // when the gifUrl points to the exercisedb host. If no candidate GIF is present
+        // but the upstream metadata includes an `id`, prefer that id for the id-based proxy.
+        if (candidate) {
+          try {
+            const u = new URL(candidate);
+            if (u.hostname === EXERCISE_DB_HOST && upstreamId) {
+              return { ...ex, gifUrl: `/api/exercises/imageById?exerciseId=${encodeURIComponent(upstreamId)}&resolution=360` };
+            }
+          } catch (e) {
+            // ignore URL parse errors and fall back to candidate value
+          }
+
+          return { ...ex, gifUrl: candidate };
+        }
+
+        // No candidate gifUrl found; if upstream metadata gave us an exercisedb id,
+        // use it to build an id-based proxy so the image matches the upstream exercise.
+        if (!candidate && upstreamId) {
+          return { ...ex, gifUrl: `/api/exercises/imageById?exerciseId=${encodeURIComponent(upstreamId)}&resolution=360` };
+        }
+
+        return ex;
+      } catch (err) {
+        return ex;
+      }
+    };
+
+    const fetchImages = async () => {
+      try {
+        // Try to read persisted snapshot images first (fast fallback)
+        let imagesByName = {};
+        try {
+          const snap = await fetchWithMiddleware('/api/exercises/imagesByName', { method: 'GET' });
+          if (snap && typeof snap === 'object') imagesByName = snap;
+        } catch (e) {
+          // ignore snapshot read errors
+        }
+
+        const results = [];
+        for (const ex of exercises) {
+          // Try multiple snapshot key formats for robustness (raw, trimmed, lowercased, and URI-encoded variants)
+          const rawName = ex.name || '';
+          const trimmed = rawName.trim();
+          const lower = rawName.toLowerCase();
+          const encoded = encodeURIComponent(rawName);
+          const encodedTrimmed = encodeURIComponent(trimmed);
+          const encodedLower = encodeURIComponent(lower);
+          const nameKeys = [rawName, trimmed, lower, encoded, encodedTrimmed, encodedLower];
+          let snapshotVal = null;
+          for (const k of nameKeys) {
+            if (imagesByName && Object.prototype.hasOwnProperty.call(imagesByName, k) && imagesByName[k]) {
+              snapshotVal = imagesByName[k];
+              break;
+            }
+          }
+
+          // If snapshot has an image for this name, use it immediately
+          if (snapshotVal) {
+            results.push({ ...ex, gifUrl: snapshotVal });
+            // small delay to be gentle
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((rsv) => setTimeout(rsv, 30));
+            continue;
+          }
+
+          // Otherwise query metadata endpoint for gifUrl (sequential-ish to avoid aggressive parallel calls)
+          // eslint-disable-next-line no-await-in-loop
+          const r = await fetchOneImage(ex);
+
+          // If metadata didn't return a usable gifUrl, fall back to curated local bodyPart asset
+          if ((!r.gifUrl) && ex.bodyPart) {
+            const local = LOCAL_BY_PART[ex.bodyPart] || placeholder;
+            results.push({ ...r, gifUrl: local });
+          } else {
+            results.push(r);
+          }
+
+          // small delay between external requests
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((rsv) => setTimeout(rsv, 40));
+        }
+        if (mounted) {
+          setExercises(results);
+          // If a modal is open for a selected exercise, update it with the resolved gifUrl
+          try {
+            if (selectedExercise) {
+              const updated = results.find((r) => r && r.id === selectedExercise.id);
+              if (updated) setSelectedExercise(updated);
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching exercise images:', err);
+      }
+    };
+
+    fetchImages();
+    return () => { mounted = false; };
+  }, [exercises]);
+
+  // When exercises are loaded, fetch images (gifUrl) from the exercise API proxy
+  
+
   const handleExerciseClick = (exercise, idx) => {
     setSelectedExercise(exercise);
     setSelectedExerciseIndex(idx);
@@ -74,7 +237,7 @@ const HomePage = () => {
     }
   };
 
-  const handleWorkoutComplete = async () => {
+  const handleWorkoutComplete = async (planClosed) => {
     // Refresh plans and exercises after a workout completes
     if (!userId) return;
     try {
@@ -164,14 +327,40 @@ const HomePage = () => {
           <div className="exercises-grid">
             {exercises.map((ex, idx) => (
               <div key={ex.id} className="exercise-card" onClick={() => handleExerciseClick(ex, idx)}>
-                <div className="exercise-card-header">
-                  <div className="exercise-card-dot"></div>
-                  <h4>{ex.name}</h4>
+                <div className="exercise-card-header" 
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'row', 
+                  alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  gap: '70px',
+                }} >
+                  <ExerciseImage
+                    gifUrl={ex.gifUrl}
+                    exerciseId={ex.id}
+                    alt={ex.name || 'Exercise demonstration'}
+                    className="exercise-thumb"
+                    width={240}
+                  />
+
+                  {/*<div className="exercise-card-dot"></div>*/}
+                  <div style={{
+                    width : '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                  }}>
+                    <h4 className="ex-card-name" style={{fontSize: '25px'}} >{ex.name}</h4>
+                  <p className="exercise-card-info" style={{fontSize: '18px'}} >{ex.sets} × {ex.reps} reps</p>
+                    <button type="button" className="exercise-card-btn" onClick={(e) => { e.stopPropagation(); handleExerciseClick(ex, idx); }}>
+                      Start
+                    </button>
+                  </div>
+                  
                 </div>
-                <p className="exercise-card-info">{ex.sets} × {ex.reps} reps</p>
-                <button type="button" className="exercise-card-btn" onClick={(e) => { e.stopPropagation(); handleExerciseClick(ex, idx); }}>
-                  Start
-                </button>
+                
+                
               </div>
             ))}
           </div>

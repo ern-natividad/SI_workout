@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import "../style/workout.css";
+import placeholder from "../assets/background.jpg";
+import ExerciseImage from "../components/ExerciseImage";
 
 const exercises = [
   {
@@ -55,7 +57,7 @@ const WorkoutPage = () => {
     <div className="workout-wrapper">
      
       <div className="workout-left">
-        <img src={exercise.image} alt="exercise" className="exercise-img" />
+        <ExerciseImage gifUrl={exercise.gifUrl} exerciseId={exercise.id} width={480} className="exercise-img" alt={exercise.name} />
       </div>
 
       {/* Exercise Info */}

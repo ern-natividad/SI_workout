@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import "../style/information_setup.css";
 import { useNavigate } from "react-router-dom";
-import { fetchData, excerciseOptions } from "../utils/fetchData";
+import { fetchData } from "../utils/fetchData";
 import fetchWithMiddleware from "../utils/fetchMiddleware";
+import placeholderImg from "../assets/background.jpg";
 import { useAuth } from "../components/AuthContext";
+import ExerciseImage from "../components/ExerciseImage";
 
 const InformationSetup = () => {
   const navigate = useNavigate();
@@ -27,7 +29,7 @@ const InformationSetup = () => {
   useEffect(() => {
     const fetchEquipment = async () => {
       try {
-        const equipmentData = await fetchData('https://exercisedb.p.rapidapi.com/exercises/equipmentList', excerciseOptions);
+        const equipmentData = await fetchData('/api/exercises/equipmentList');
         setEquipmentList(equipmentData);
       } catch (error) {
         console.error('Error fetching equipment:', error);
@@ -39,8 +41,7 @@ const InformationSetup = () => {
   useEffect(() => {
     const fetchTargets = async () => {
       try {
-        const targetData = await fetchData('https://exercisedb.p.rapidapi.com/exercises/bodyPartList', excerciseOptions);
-        //console.log('Fetched Body Part List:', targetData);
+        const targetData = await fetchData('/api/exercises/bodyPartList');
         setTargetList(targetData);
       } catch (error) {
         console.error('Error fetching targets:', error);
@@ -67,7 +68,7 @@ const InformationSetup = () => {
         if (selectedEquipment.length > 0) {
           // 1. Primary Fetch: Fetch all exercises matching the selected equipment
           for (const equipment of selectedEquipment) {
-            const equipmentExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/equipment/${equipment}`, excerciseOptions);
+            const equipmentExercises = await fetchData(`/api/exercises/equipment/${encodeURIComponent(equipment)}`);
             exercises = [...exercises, ...equipmentExercises];
           }
           
@@ -81,9 +82,9 @@ const InformationSetup = () => {
 
           // 2. Apply the secondary filter (AND logic) IF targets are also selected
           if (selectedTargets.length > 0) {
+            // If targets are selected, ensure each exercise contains the bodyPart
             const targetFilteredExercises = uniqueExercises.filter(exercise =>
-              // Check if the exercise's bodyPart is included in the user's selectedTargets
-              selectedTargets.includes(exercise.bodyPart)
+              selectedTargets.includes(exercise.bodyPart || exercise.target)
             );
 
             // 3. FALLBACK LOGIC: If the AND filter yields no results, revert to showing equipment-only exercises.
@@ -97,7 +98,7 @@ const InformationSetup = () => {
         } else if (selectedTargets.length > 0) {
           // If ONLY targets are selected (and equipment is empty), fetch only by target.
           for (const target of selectedTargets) {
-            const targetExercises = await fetchData(`https://exercisedb.p.rapidapi.com/exercises/bodyPart/${target}`, excerciseOptions);
+            const targetExercises = await fetchData(`/api/exercises/bodyPart/${encodeURIComponent(target)}`);
             exercises = [...exercises, ...targetExercises];
           }
           // Remove duplicates
@@ -264,18 +265,32 @@ const InformationSetup = () => {
             <p>Finalize your <span>exercise plan</span>.</p>
             <div className="exercise-list">
               {exerciseList.length > 0 ? (
-                exerciseList.map((exercise) => (
-                  <div
+                exerciseList.map((exercise) => {
+                  // Decide image resolution based on exercise kind/category/bodyPart.
+                  // Cardio/bodyweight-style exercises can use lower-resolution GIFs to save bandwidth.
+                  const resolution = (exercise.category === 'cardio' || exercise.bodyPart === 'cardio' || exercise.target === 'cardio') ? '180' : '360';
+                  const imgWidth = resolution === '180' ? 160 : 200;
+                  return (
+                    <div
                     key={exercise.id}
                     className={`exercise-item ${selectedExercises.includes(exercise.id) ? 'selected' : ''}`}
                     onClick={() => handleExerciseToggle(exercise.id)}
                   >
+                       <ExerciseImage
+                         gifUrl={exercise.gifUrl}
+                         exerciseId={exercise.id}
+                         alt={exercise.name}
+                         className="exercise-img"
+                         width={imgWidth}
+                         resolution={resolution}
+                       />
                     <h4>{exercise.name}</h4>
                     <p>Equipment: {exercise.equipment}</p>
                     <p>Target: {exercise.target}</p>
                     <p>Body Part: {exercise.bodyPart}</p>
-                  </div>
-                ))
+                    </div>
+                  );
+                })
               ) : (
                 <p>No exercises found. Please select equipment and muscle groups first.</p>
               )}
