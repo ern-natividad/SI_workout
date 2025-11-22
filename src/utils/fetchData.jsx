@@ -1,12 +1,11 @@
 export const excerciseOptions = {
-    method: 'GET',
-    headers: {
-        'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY,
-        'X-RapidAPI-Host': 'exercisedb.p.rapidapi.com'
-    }
+    method: 'GET'
 };
 
+const API_BASE = import.meta.env.VITE_API_BASE || '';
+
 export const fetchData = async (url, options) => {
-    const response = await fetch(url, options);
+    const fullUrl = url && url.startsWith('/') ? API_BASE + url : url;
+    const response = await fetch(fullUrl, options);
     return await response.json();
 }

@@ -1,0 +1,47 @@
+/* Heart Rate page styles - image 2 orange color scheme */
+
+.hr-wrapper {
+  background: url("/background.jpg") center/cover fixed;
+  min-height: 100vh;
+  padding: 60px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.hr-container{ width:980px; max-width:96%; background: rgba(12,12,12,0.6); border-radius:14px; padding:20px; border:1px solid rgba(255,140,0,0.08); box-shadow:0 10px 30px rgba(0,0,0,0.6); margin-top: 50px;} 
+.hr-header h1{ margin:0; font-size:28px; color:#fff; text-align:left;}
+.hr-sub{ color:#e6b89a; margin-top:6px; }
+
+.hr-controls{ display:flex; gap:18px; align-items:center; margin-top:16px; flex-wrap:wrap }
+.control{ background: rgba(255,255,255,0.02); padding:12px; border-radius:10px; border:1px solid rgba(255,140,0,0.06); }
+.age-control label{ display:block; color:#ee760d; font-weight:600; margin-bottom:6px }
+.age-control input[type=range]{ width:320px; accent-color: #ff7a00 }
+.resting-control label{ display:block; color:#ffd6b3; font-weight:600; margin-bottom:6px }
+.resting-control input[type=number]{ width:120px; padding:8px; border-radius:8px; background:#0b0d0e; border:1px solid rgba(255,255,255,0.03); color:#fff }
+
+.hr-summary{ display:flex; gap:12px; margin-top:18px; align-items:center; flex-wrap:wrap }
+.hr-card{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:16px; border-radius:12px; min-width:180px; display:flex; align-items:center; gap:12px; border:1px solid rgba(255,140,0,0.06); }
+.hr-card.small{ min-width:120px; justify-content:center }
+.hr-icon{ font-size:34px; color:#ff5c00; }
+.hr-max{ color:#ffd6b3; font-weight:700 }
+.hr-number{ font-size:22px; font-weight:900; color:#fff }
+.hr-number.small{ font-size:18px }
+
+.hr-zones{ margin-top:18px }
+.hr-zones h3{ color:#ffb77a; margin-bottom:10px }
+.zones-list{ display:flex; flex-direction:column; gap:10px }
+.zone-card{ display:flex; justify-content:space-between; align-items:center; padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.03); }
+.zone-left .zone-title{ font-weight:700; color:#000000 }
+.zone-left .zone-desc{ color:#000000; font-size:13px }
+.zone-right{ font-weight:800; color:#111; background:#ffd6b3; padding:6px 10px; border-radius:8px }
+
+.zone-warm{ background: linear-gradient(90deg,#f2d3aa,#f6a330); }
+.zone-fat{ background: linear-gradient(90deg,#affdaf,#36f52f); }
+.zone-aerobic{ background: linear-gradient(90deg,#abd7f3,#3193ef); }
+.zone-anaerobic{ background: linear-gradient(90deg,#fbd7b1,#f97f34); }
+.zone-vo2{ background: linear-gradient(90deg,#f8aeae,#f83131); }
+
+@media (max-width:760px){
+  .age-control input[type=range]{ width:100%; }
+  .hr-summary{ flex-direction:column }
+}

@@ -25,6 +25,8 @@ const InformationSetup = () => {
   // Exercises state
   const [exerciseList, setExerciseList] = useState([]);
   const [selectedExercises, setSelectedExercises] = useState([]);
+  // simple form state for any textual inputs used in the setup flow
+  const [formData, setFormData] = useState({});
 
   useEffect(() => {
     const fetchEquipment = async () => {
@@ -63,7 +65,7 @@ const InformationSetup = () => {
         let uniqueExercises = [];
 
         // Variable to hold the equipment-only list for fallback
-        let equipmentOnlyExercises = []; 
+        let equipmentOnlyExercises = [];
 
         if (selectedEquipment.length > 0) {
           // 1. Primary Fetch: Fetch all exercises matching the selected equipment
@@ -71,14 +73,14 @@ const InformationSetup = () => {
             const equipmentExercises = await fetchData(`/api/exercises/equipment/${encodeURIComponent(equipment)}`);
             exercises = [...exercises, ...equipmentExercises];
           }
-          
+
           // Remove duplicates to get the equipment-only list
           equipmentOnlyExercises = exercises.filter((exercise, index, self) =>
             index === self.findIndex((e) => e.id === exercise.id)
           );
-          
+
           // Start with the equipment-only list for initial filtering
-          uniqueExercises = equipmentOnlyExercises; 
+          uniqueExercises = equipmentOnlyExercises;
 
           // 2. Apply the secondary filter (AND logic) IF targets are also selected
           if (selectedTargets.length > 0) {
@@ -106,7 +108,7 @@ const InformationSetup = () => {
             index === self.findIndex((e) => e.id === exercise.id)
           );
         }
-        
+
         // 4. Update the list
         setExerciseList(uniqueExercises);
       } catch (error) {
@@ -151,7 +153,7 @@ const InformationSetup = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     try {
       // Use AuthContext's userId (session-managed) rather than localStorage
       const userId = authUserId;
@@ -189,7 +191,7 @@ const InformationSetup = () => {
             weight_type: 'weighted'
           }))
       };
-      
+
       console.debug('Sending planData:', planData);
       console.log('planData exercises count:', planData.exercises.length);
       console.log('planData.user_id:', planData.user_id, 'type:', typeof planData.user_id);
@@ -203,18 +205,18 @@ const InformationSetup = () => {
         },
         body: JSON.stringify(planData)
       });
-      
+
       console.debug('saveWorkoutPlan result:', result);
-      
+
       // If middleware returns an object, check for success
-       if (result && result.success) {
-         alert('Workout plan saved successfully!');
-         navigate("/homepage");
-       } else {
-         const errorMsg = (result && result.message) || 'Unknown error';
-         console.error('saveWorkoutPlan failed:', errorMsg, result);
-         alert('Failed to save workout plan: ' + errorMsg);
-       }
+      if (result && result.success) {
+        alert('Workout plan saved successfully!');
+        navigate("/homepage");
+      } else {
+        const errorMsg = (result && result.message) || 'Unknown error';
+        console.error('saveWorkoutPlan failed:', errorMsg, result);
+        alert('Failed to save workout plan: ' + errorMsg);
+      }
     } catch (error) {
       console.error('Error saving workout plan:', error);
       alert('Failed to save workout plan. Please try again.');
@@ -229,13 +231,14 @@ const InformationSetup = () => {
             <p>Select your <span>equipment</span> here.</p>
             <div className="equipment-grid">
               {equipmentList.map((equipment, index) => (
-                <div
+                <button
                   key={index}
+                  type="button"
                   className={`equipment-box ${selectedEquipment.includes(equipment) ? 'selected' : ''}`}
                   onClick={() => handleEquipmentToggle(equipment)}
                 >
                   {equipment}
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -247,13 +250,14 @@ const InformationSetup = () => {
             <p>Choose target <span>muscle groups</span>.</p>
             <div className="equipment-grid">
               {targetList.map((target, index) => (
-                <div
+                <button
                   key={index}
+                  type="button"
                   className={`equipment-box ${selectedTargets.includes(target) ? 'selected' : ''}`}
                   onClick={() => handleTargetToggle(target)}
                 >
                   {target}
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -262,7 +266,7 @@ const InformationSetup = () => {
       case 3:
         return (
           <div className="step-placeholder">
-            <p>Finalize your <span>exercise plan</span>.</p>
+            <p>Choose your <span>exercise plan</span>.</p>
             <div className="exercise-list">
               {exerciseList.length > 0 ? (
                 exerciseList.map((exercise) => {
@@ -280,14 +284,23 @@ const InformationSetup = () => {
                          gifUrl={exercise.gifUrl}
                          exerciseId={exercise.id}
                          alt={exercise.name}
-                         className="exercise-img"
-                         width={imgWidth}
+                         width={'180px'}
                          resolution={resolution}
                        />
-                    <h4>{exercise.name}</h4>
-                    <p>Equipment: {exercise.equipment}</p>
-                    <p>Target: {exercise.target}</p>
-                    <p>Body Part: {exercise.bodyPart}</p>
+                       <div className="exercise-info">
+                        <h4 style={{
+                          flex: 1,
+                          textAlign: 'center',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',}} >
+                            {exercise.name}</h4>
+                        <p>Equipment: {exercise.equipment}</p>
+                        <p>Target: {exercise.target}</p>
+                        <p>Body Part: {exercise.bodyPart}</p>
+                        <p>Difficulty: {exercise.difficulty}</p>
+                       </div>
+                    
                     </div>
                   );
                 })
@@ -295,52 +308,54 @@ const InformationSetup = () => {
                 <p>No exercises found. Please select equipment and muscle groups first.</p>
               )}
             </div>
-            <button type="submit" className="finish-btn">Finish Setup</button>
-          </div>
+            <button type="submit" className="finish-btn" style={{ width: '100%', maxWidth: '100%'}} >Finish Setup</button>
+          </div >
         );
 
       default:
-        return null;
+return null;
     }
   };
 
-  return (
-    <div className="info-setup-container">
-      <div className="info-card">
-        {/* Progress Steps */}
-        <div className="steps">
-          {[1, 2, 3].map((num) => (
-            <div
-              key={num}
-              className={`step ${step === num ? "active" : ""}`}
-            >
-              <div className="circle">{num}</div>
-              <span className="label">
-                {["Equipment", "Muscles", "Exercises"][num - 1]}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          {renderStep()}
-
-          <div className="buttons">
-            {step > 1 && (
-              <button type="button" className="prev-btn" onClick={prevStep}>
-                Previous
-              </button>
-            )}
-            {step < 3 && (
-              <button type="button" className="next-btn" onClick={nextStep}>
-                Continue
-              </button>
-            )}
+return (
+  <div className="info-setup-container">
+    <div className="info-card">
+      {/* Progress Steps */}
+      <div className="steps">
+        {[1, 2, 3].map((num) => (
+          
+          <div
+            key={num}
+            className={`step ${step === num ? "active" : ""}`}
+          ><div className="step-col" style={{  display: 'flex', flexDirection: 'column', alignItems: 'center' }} key={num}>
+            <div className="circle">{num}</div>
+            <span className="label">
+              {["Equipment", "Muscles", "Exercises"][num - 1]}
+            </span>
           </div>
-        </form>
+          </div>
+        ))}
       </div>
+
+      <form onSubmit={handleSubmit}>
+        {renderStep()}
+
+        <div className="buttons">
+          {step > 1 && (
+            <button type="button" className="prev-btn" onClick={prevStep}>
+              Previous
+            </button>
+          )}
+          {step < 3 && (
+            <button type="button" className="next-btn" onClick={nextStep}>
+              Continue
+            </button>
+          )}
+        </div>
+      </form>
     </div>
-  );
+  </div>
+);
 };
 
 export default InformationSetup;

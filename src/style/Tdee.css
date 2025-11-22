@@ -145,3 +145,54 @@
   margin-top: 15px;
   font-style: italic;
 }
+
+/* New layout styles for summary and macros (responsive) */
+.tdee-summary {
+  display: flex;
+  gap: 12px;
+}
+
+.summary-card {
+  background: rgba(255,255,255,0.02);
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+}
+.summary-label {
+  font-size: 13px;
+  color: #ddd;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.summary-value {
+  color: #fff;
+  font-weight: 800;
+}
+
+.macro-grid {
+  display: flex;
+  gap: 12px;
+}
+.macro-card {
+  background: rgba(255,255,255,0.02);
+  border-radius: 8px;
+  padding: 12px;
+}
+.macro-label { color: #ddd; font-weight:600; margin-bottom:6px }
+.macro-grams { color: #fff }
+.macro-kcal { color: #ccc }
+
+/* Responsive breakpoints */
+@media (max-width: 900px) {
+  .tdee-container { max-width: 760px; padding: 28px }
+  .tdee-summary { flex-direction: column }
+  .tdee-row { flex-direction: column }
+}
+
+@media (max-width: 520px) {
+  .tdee-container { padding: 20px }
+  .macro-grid { flex-direction: column }
+  .tdee-summary { gap: 10px }
+  .tdee-title { font-size: 28px }
+  .result-box { flex-direction: column; align-items: flex-start }
+}

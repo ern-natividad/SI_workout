@@ -137,19 +137,73 @@ function TDEECalculator() {
           <div className="tdee-results">
             <h2>Your Results</h2>
 
-            <div className="result-box">
-              <span>BMR</span>
-              <strong>{results.bmr}</strong>
+            {/* Top summary cards: BMR, TDEE, Target Calories */}
+            <div className="tdee-summary" style={{ display: 'flex', gap: 12, alignItems: 'stretch', marginBottom: 18, flexDirection: 'row', justifyContent: 'center' }}>
+              <div className="summary-card" style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span className="summary-label">BMR</span>
+                <strong className="summary-value" style={{ fontSize: 20 }}>{Number(results.bmr).toLocaleString()} kcal</strong>
+              </div>
+
+              <div className="summary-card" style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span className="summary-label">TDEE</span>
+                <strong className="summary-value" style={{ fontSize: 20 }}>{Number(results.tdee).toLocaleString()} kcal</strong>
+              </div>
+
+              <div className="summary-card target-card" style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span className="summary-label">Target Calories</span>
+                <strong className="summary-value" style={{ fontSize: 22 }}>{Number(results.tdee).toLocaleString()} kcal</strong>
+              </div>
             </div>
 
-            <div className="result-box">
-              <span>TDEE</span>
-              <strong>{results.tdee} kcal/day</strong>
-            </div>
+            {/* Recommended macros */}
+            {/** Use macro split: Protein 30% / Carbs 40% / Fat 30% of TDEE */}
+            {(() => {
+              const tdee = Number(results.tdee);
+              const proteinKcal = tdee * 0.30;
+              const carbsKcal = tdee * 0.40;
+              const fatKcal = tdee * 0.30;
+              const proteinG = Math.round(proteinKcal / 4);
+              const carbsG = Math.round(carbsKcal / 4);
+              const fatG = Math.round(fatKcal / 9);
 
-            <p className="note">
+              return (
+                <div className="macro-grid" style={{ display: 'flex', gap: 12, marginTop: 8, justifyContent: 'center', flexDirection: 'row'}}>
+                  <div className="macro-card" style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid rgba(0,0,0,0.08)' }}>
+                    <div className="summary-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',flexDirection:'column', gap:4, backgroundColor:'#d74b1cff'  }}>
+                      <div style={{display:'flex',flexDirection:'column'}} >
+                        <div className="macro-label">Protein</div>
+                        <div className="macro-grams" style={{ fontSize: 18, fontWeight: 700 }}>{proteinG}g</div>
+                      </div>
+                      <div className="macro-kcal" style={{ textAlign: 'right' }}>{Math.round(proteinKcal)} kcal</div>
+                    </div>
+                  </div>
+
+                  <div className="macro-card" style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid rgba(0,0,0,0.08)' }}>
+                    <div className="summary-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',flexDirection:'column', gap:4, backgroundColor:'#1c8cd7ff' }}>
+                      <div style={{display:'flex',flexDirection:'column'}} >
+                        <div className="macro-label">Carbohydrates</div>
+                        <div className="macro-grams" style={{ fontSize: 18, fontWeight: 700 }}>{carbsG}g</div>
+                      </div>
+                      <div className="macro-kcal" style={{ textAlign: 'right' }}>{Math.round(carbsKcal)} kcal</div>
+                    </div>
+                  </div>
+
+                  <div className="macro-card" style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid rgba(0,0,0,0.08)'  }}>
+                    <div className="summary-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',flexDirection:'column', gap:4, backgroundColor:'#d7ab1cff' }}>
+                      <div style={{display:'flex',flexDirection:'column'}} >
+                        <div className="macro-label">Fat</div>
+                        <div className="macro-grams" style={{ fontSize: 18, fontWeight: 700 }}>{fatG}g</div>
+                      </div>
+                      <div className="macro-kcal" style={{ textAlign: 'right' }}>{Math.round(fatKcal)} kcal</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <p className="note" style={{ marginTop: 12 }}>
               Use TDEE to plan calorie deficit or surplus depending on your
-              fitness goals.
+              fitness goals. Macro split used: Protein 30% / Carbs 40% / Fat 30%.
             </p>
           </div>
         )}

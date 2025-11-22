@@ -270,59 +270,55 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
 
             {/* Current Exercise Header */}
             <div className="workout-card-header"
-                        style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyItems: 'center',
-                            alignItems: 'center',
-                            margin: 'auto',
-                            gap: '30px'
-                        }}>
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyItems: 'center',
+                    alignItems: 'center',
+                    margin: 'auto',
+                    gap: '30px'
+                }}>
+                <button type="button" className="btn-close-workout" onClick={(e) => { e.stopPropagation(); onClose && onClose(); }} style={{ backgroundColor: 'red' }}> <span>✕</span>  Close This Workout</button>
 
-               
-                    
-                        <button className="btn-close-workout" onClick={onClose} style={{ backgroundColor: 'red'}}> <span>✕</span>  Close This Workout</button>
-                   
-                
-                    <div className="exercise-header-top"
-                        style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyItems: 'center',
-                            alignItems: 'center',
-                            margin: 'auto',
-                            gap: '30px'
-                        }}>
-                            
-                        {currentExercise ? (
-                            <ExerciseImage
-                                gifUrl={currentExercise.gifUrl}
-                                exerciseId={currentExercise.id}
-                                alt={currentExercise.name}
-                                className="exercise-img"
-                                width={140}
-                            />
-                        ) : (
-                            <div className="exercise-img exercise-img--placeholder" aria-hidden="true" />
-                        )}
-                        <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '100px'
-                        }}>
+                <div className="exercise-header-top"
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyItems: 'center',
+                        alignItems: 'center',
+                        margin: 'auto',
+                        gap: '30px'
+                    }}>
 
-                            <h3 className="exercise-title">{currentExercise && currentExercise.name}</h3>
-                        </div>
+                    {currentExercise ? (
+                        <ExerciseImage
+                            gifUrl={currentExercise.gifUrl}
+                            exerciseId={currentExercise.id}
+                            alt={currentExercise.name}
+                            className="exercise-img"
+                            width={140}
+                        />
+                    ) : (
+                        <div className="exercise-img exercise-img--placeholder" aria-hidden="true" />
+                    )}
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '100px'
+                    }}>
 
-                        {/* Calorie badge: show when multiple exercises completed */}
-                        {totalCompletedCount > 1 && (
-                            <div className="calorie-badge" title={`Estimated ${estimatedCalories} kcal burned`}>
-                                {estimatedCalories} kcal
-                            </div>
-                        )}
-
+                        <h3 className="exercise-title">{currentExercise && currentExercise.name}</h3>
                     </div>
-               
+
+                    {/* Calorie badge: show when multiple exercises completed */}
+                    {totalCompletedCount > 1 && (
+                        <div className="calorie-badge" title={`Estimated ${estimatedCalories} kcal burned`}>
+                            {estimatedCalories} kcal
+                        </div>
+                    )}
+
+                </div>
+
             </div>
 
             <div className="set-container">
@@ -359,13 +355,13 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
-                            gap : '10px',
+                            gap: '10px',
                             marginBottom: '10px'
                         }}>
                         <select
                             value={weightType}
                             onChange={handleWeightTypeChange}
-                            
+
                         >
                             <option value="weight">Weighted</option>
                             <option value="bodyweight">Bodyweight</option>
@@ -385,11 +381,11 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
                                         required
                                     />
                                 </div>
-                                
+
                                 <select
                                     value={weightUnit}
                                     onChange={(e) => setWeightUnit(e.target.value)}
-                                    
+
                                 >
                                     <option>kg</option>
                                     <option>lb</option>
@@ -412,52 +408,56 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
                 )}
 
                 {/* Finish Set Button */}
-                <button className="btn-finish-set" onClick={handleFinishSet}>Finish Set</button>
+                <button type="button" className="btn-finish-set" onClick={(e) => { e.stopPropagation(); handleFinishSet && handleFinishSet(); }}>Finish Set</button>
 
                 {/* Action Buttons */}
                 <div className="action-buttons">
-                    <button className="btn-add-set" onClick={handleFinishSet}>+ Add set</button>
-                    <button className="btn-next-exercise" onClick={handleNextExercise}>→ Next Exercise</button>
+
 
                     {completedExercises.length > 0 && (
-                        <button className="btn-finish-workout" onClick={handleFinishWorkout} disabled={isSaving}>
-                            {isSaving ? 'Saving...' : '✓ Finish Workout'}
-                        </button>
+                        <button type="button" className="btn-finish-workout" onClick={(e) => { e.stopPropagation(); handleFinishWorkout && handleFinishWorkout(); }} disabled={isSaving} style={{width: '50%'}} >
+                    {isSaving ? 'Saving...' : '✓ Finish Workout'}
+                </button>
                     )}
-                </div>
+                {/*<button className="btn-add-set" onClick={handleFinishSet}>+ Add set</button>*/}
+                <button type="button" className="btn-next-exercise" onClick={(e) => { e.stopPropagation(); handleNextExercise && handleNextExercise(); }}>→ Next Exercise</button>
+            </div>
 
-                {/* Completed Sets List */}
-                {completedSets.length > 0 && (
-                    <div className="completed-sets"
-                        style={{ marginTop : '20px', marginBottom : '20px' }}>
-                    
-                        <h4>Completed Sets</h4>
-                        {completedSets.map((set, idx) => (
-                            <div key={set.id} className="completed-set-item" style={{ marginTop : '20px', marginBottom : '20px' }}>
-                                <div className="set-info" 
-                                    style={{ display: 'flex',
+            {/* Completed Sets List */}
+            {completedSets.length > 0 && (
+                <div className="completed-sets"
+                    style={{ marginTop: '20px', marginBottom: '20px' }}>
+
+                    <h4>Completed Sets</h4>
+                    {completedSets.map((set, idx) => (
+                        <div key={set.id} className="completed-set-item" style={{ marginTop: '20px', marginBottom: '20px' }}>
+                            <div className="set-info"
+                                style={{
+                                    display: 'flex',
                                     flexDirection: 'column',
                                     justifyContent: 'space-between',
                                     alignItems: 'center',
-                                    width: '100%' }}
-                                    >
-                                    <span className="set-details">
-                                        Set {idx + 1}: {set.reps} reps {set.weightValue ? `@ ${set.weightValue} ${set.weightUnit}` : ''}
-                                    </span>
-                                
+                                    width: '100%'
+                                }}
+                            >
+                                <span className="set-details">
+                                    Set {idx + 1}: {set.reps} reps {set.weightValue ? `@ ${set.weightValue} ${set.weightUnit}` : ''}
+                                </span>
+
                                 <button
+                                    type="button"
                                     className="btn-remove-set"
-                                    onClick={() => removeCompletedSet(set.id)}
+                                    onClick={(e) => { e.stopPropagation(); removeCompletedSet && removeCompletedSet(set.id); }}
                                 >
                                     ✕
                                 </button>
-                                </div>
                             </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
+    </div>
     );
 };
 

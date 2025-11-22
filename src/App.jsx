@@ -17,6 +17,10 @@ import HomePage from './pages/HomePage';
 import StatisticsPage from './pages/statistics';
 import Tools from './pages/tools';
 import WorkoutPage from './pages/workout';
+import BMI from './pages/BMI';
+import HeartRate from './pages/HeartRate';
+import Profile from './pages/Profile';
+import ProfileEdit from './pages/ProfileEdit';
 
 
 function App() {
@@ -39,14 +43,20 @@ function App() {
     '/homepage',
     '/statistics',
     '/tools',
-    '/workout'
+    '/workout',
+    "/tdee",
+    '/bmi',
+    '/heartrate',
+    '/profile',
+    '/profile/edit',
+    '/information_setup'
   ];
 
   // Public pages (landing + info pages)
   const publicHeader = [
     '/about',
     '/contacts',
-    '/faq'
+    '/faq',
   ];
 
   // SPECIAL CASE → Landing page "/" must match EXACT only
@@ -62,7 +72,8 @@ function App() {
   return (
     <div>
 
-      {showPublicHeader && <Header />}
+      {/* Public header for unauthenticated visitors (includes landing and public pages) */}
+      {(showPublicHeader || (isLanding && !isLoggedIn)) && <Header />}
       {showUserHeader && <HeaderUser />}
 
       <Routes>
@@ -73,10 +84,16 @@ function App() {
         <Route path="/loginpage" element={<LoginPage />} />
 
         <Route path="/faq" element={<Faq />} />
+        
 
         <Route path="/tdee" element={<TDEECalculator />} />
+        <Route path="/bmi" element={<BMI />} />
+        <Route path="/heartrate" element={<HeartRate />} />
         <Route path="/tools" element={<Tools />} />
 
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/profile/edit" element={<ProfileEdit />} />
+        
         
 
         <Route path="/homepage" element={<HomePage />} />

@@ -3,6 +3,19 @@ import pool from '../config/database.js';
 
 const router = express.Router();
 
+// Ensure `deleted_at` column exists on the `progress` table for soft-deletes
+(async () => {
+  try {
+    const [cols] = await pool.query("SHOW COLUMNS FROM progress LIKE 'deleted_at'");
+    if (!cols || cols.length === 0) {
+      await pool.query("ALTER TABLE progress ADD COLUMN deleted_at TIMESTAMP NULL DEFAULT NULL");
+      console.log('Added deleted_at column to progress table');
+    }
+  } catch (err) {
+    console.warn('Could not ensure deleted_at column on progress:', err.message);
+  }
+})();
+
 // Middleware to verify auth token
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -261,6 +274,26 @@ router.post('/complete', verifyToken, async (req, res) => {
   }
 });
 
+// Delete a progress entry (workout history)
+// Example: DELETE /api/workouts/delete?id=123
+router.delete('/delete', verifyToken, async (req, res) => {
+  try {
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ success: false, message: 'id is required' });
+
+    // Soft-delete: set deleted_at timestamp so row can be hidden but totals can still be calculated if needed
+    const [result] = await pool.query('UPDATE progress SET deleted_at = NOW() WHERE id = ?', [id]);
+    if (result.affectedRows && result.affectedRows > 0) {
+      return res.json({ success: true, deleted: true });
+    }
+
+    res.json({ success: false, deleted: false });
+  } catch (error) {
+    console.error('Delete progress error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;
 
 // Progress listing (returns progress records for a user)
@@ -276,12 +309,20 @@ router.get('/progress', async (req, res) => {
       `SELECT p.id, p.user_id, p.plan_id, p.completed_at, p.weight_kg, p.calories_burned, p.notes, wp.title AS plan_title
        FROM progress p
        LEFT JOIN workout_plans wp ON p.plan_id = wp.id
-       WHERE p.user_id = ?
+       WHERE p.user_id = ? AND p.deleted_at IS NULL
        ORDER BY p.completed_at DESC`,
       [userId]
     );
 
-    res.json({ success: true, progress: rows });
+    // Also compute aggregate calorie totals (including soft-deleted rows) so frontend can display totals that persist
+    const [[totals]] = await pool.query(
+      `SELECT COALESCE(SUM(calories_burned),0) AS total_calories_all,
+              COALESCE(SUM(CASE WHEN completed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN calories_burned ELSE 0 END),0) AS weekly_calories_all
+       FROM progress WHERE user_id = ?`,
+      [userId]
+    );
+
+    res.json({ success: true, progress: rows, totals });
   } catch (error) {
     console.error('Get progress error:', error);
     res.status(500).json({ success: false, message: error.message });

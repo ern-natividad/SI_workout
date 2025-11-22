@@ -24,7 +24,8 @@ function SignUp() {
 
   });
 
-  const apiUrl = '/api/auth/signup';
+  const API_BASE = import.meta.env.VITE_API_BASE || '';
+  const apiUrl = API_BASE + '/api/auth/signup';
 
   const handleSubmit = async (e) => {
     e.preventDefault();

@@ -4,6 +4,7 @@
 // - handles 401 by clearing session storage (caller can handle redirect)
 
 export async function fetchWithMiddleware(url, options = {}) {
+  const API_BASE = import.meta.env.VITE_API_BASE || '';
   const token = sessionStorage.getItem('authToken');
 
   const defaultHeaders = {
@@ -17,7 +18,8 @@ export async function fetchWithMiddleware(url, options = {}) {
 
   const opts = { ...options, headers: defaultHeaders };
 
-  const response = await fetch(url, opts);
+  const fullUrl = url && url.startsWith('/') ? API_BASE + url : url;
+  const response = await fetch(fullUrl, opts);
 
   if (response.status === 401) {
     // Clear client-side auth state so the app can re-authenticate.

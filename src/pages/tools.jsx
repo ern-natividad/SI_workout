@@ -47,10 +47,10 @@ const Tools = () => {
             <p className="tool-desc">
               Quickly check if your weight aligns with your height range.
             </p>
-            <button className="tool-btn">Try Now</button>
+            <Link to="/bmi" className="tool-btn">Try Now</Link>
           </div>
 
-          {/* ------------------ WORKOUT LOGGER ------------------ */}
+          {/* ------------------ Heart Rate ------------------ */}
           <div className="tool-card">
 
             <div className="tool-icon">
@@ -61,11 +61,11 @@ const Tools = () => {
               />
             </div>
 
-            <h2 className="tool-name">Workout Tracker</h2>
+            <h2 className="tool-name">Heart Rate Monitor</h2>
             <p className="tool-desc">
-              Log workouts and monitor progress effortlessly.
+              Check your Heart Rate zones during workouts for optimal training.
             </p>
-            <button className="tool-btn">Try Now</button>
+            <Link to="/heartrate" className="tool-btn">Try Now</Link>
           </div>
 
         </div>

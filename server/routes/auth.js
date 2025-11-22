@@ -1,5 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import pool from '../config/database.js';
 
 const router = express.Router();
@@ -89,8 +90,14 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Generate simple token (in production, use JWT)
-    const token = Buffer.from(`${user.id}:${Date.now()}`).toString('base64');
+    // Generate JWT token
+    const JWT_SECRET = process.env.JWT_SECRET || '';
+    if (!JWT_SECRET) {
+      console.error('JWT_SECRET is not set. Cannot issue tokens.');
+      return res.status(500).json({ success: false, message: 'Server misconfiguration' });
+    }
+
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
 
     res.json({
       success: true,

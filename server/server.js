@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 // Load environment variables
 dotenv.config();
@@ -9,14 +11,53 @@ dotenv.config();
 import authRoutes from './routes/auth.js';
 import workoutRoutes from './routes/workouts.js';
 import exercisesRoutes from './routes/exercises.js';
+import usersRoutes from './routes/users.js';
 import pool from './config/database.js';
+import path from 'path';
+import fs from 'fs';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+// CORS configuration: allow a specific FRONTEND_URL in production, otherwise allow all (dev)
+const FRONTEND_URL = process.env.FRONTEND_URL || process.env.VITE_API_BASE || '';
+if (process.env.NODE_ENV === 'production' && FRONTEND_URL) {
+  app.use(cors({ origin: FRONTEND_URL }));
+} else {
+  app.use(cors());
+}
+// Basic security headers
+app.use(helmet());
+
+// Rate limiting (configurable via env vars)
+const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX, 10) || 100; // general limit per window
+const RATE_LIMIT_AUTH_MAX = parseInt(process.env.RATE_LIMIT_AUTH_MAX, 10) || 10; // stricter for auth endpoints
+
+// Apply a stricter limiter to auth routes to prevent brute force, and a generous general limiter elsewhere.
+const authLimiter = rateLimit({
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  max: RATE_LIMIT_AUTH_MAX,
+  message: 'Too many authentication attempts, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const generalLimiter = rateLimit({
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  max: RATE_LIMIT_MAX * 10, // more permissive for other routes in development
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Use route-specific limiter for auth, and general limiter globally afterwards
+app.use('/api/auth', authLimiter);
+app.use(generalLimiter);
+// Increase body size limits (configurable via MAX_JSON_SIZE env)
+const MAX_JSON_SIZE = process.env.MAX_JSON_SIZE || '5mb';
+app.use(express.json({ limit: MAX_JSON_SIZE }));
+app.use(express.urlencoded({ limit: MAX_JSON_SIZE, extended: true }));
 
 // Log incoming requests
 app.use((req, res, next) => {
@@ -28,6 +69,33 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/workouts', workoutRoutes);
 app.use('/api/exercises', exercisesRoutes);
+app.use('/api/users', usersRoutes);
+
+// Serve uploaded files from the public/uploads folder
+const uploadsDir = path.resolve(process.cwd(), '..', 'public', 'uploads');
+try {
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+} catch (err) {
+  console.error('Failed to ensure uploads directory exists:', err);
+}
+app.use('/uploads', express.static(uploadsDir));
+
+// Serve frontend build (Vite `dist`) in production when present
+const distDir = path.resolve(process.cwd(), '..', 'dist');
+try {
+  if (process.env.NODE_ENV === 'production') {
+    if (fs.existsSync(distDir)) {
+      app.use(express.static(distDir));
+      app.get('*', (req, res) => {
+        res.sendFile(path.resolve(distDir, 'index.html'));
+      });
+    } else {
+      console.warn('Dist folder not found - build frontend before starting in production.');
+    }
+  }
+} catch (err) {
+  console.error('Error while attempting to serve dist folder:', err);
+}
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
@@ -53,6 +121,10 @@ app.get('/api/health', async (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
+  // handle payload too large specifically
+  if (err.type === 'entity.too.large' || err.status === 413) {
+    return res.status(413).json({ success: false, message: 'Payload too large. Reduce avatar image size.' });
+  }
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal server error'

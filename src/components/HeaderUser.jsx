@@ -31,11 +31,7 @@ const HeaderUser = () => {
               Statistics
             </NavLink>
           </li>
-          <li>
-            <NavLink to="/workout" className={({ isActive }) => (isActive ? "active" : "")}>
-              Workout
-            </NavLink>
-          </li>
+          
           <li>
             <NavLink to="/tools" className={({ isActive }) => (isActive ? "active" : "")}>
               Tools
@@ -45,17 +41,16 @@ const HeaderUser = () => {
       </nav>
 
       <div className="profile-container">
-  <img
-    src="/default-profile.jpg"
-    alt="Profile"
-    className="profile-image"
-    onClick={() => setMenuOpen(!menuOpen)}
-  />
+      <img
+        src={sessionStorage.getItem('userAvatar') || '/default-profile.jpg'}
+        alt="Profile"
+        className="profile-image"
+        onClick={() => setMenuOpen(!menuOpen)}
+      />
 
   {menuOpen && (
     <div className="profile-dropdown">
       <button onClick={() => navigate("/profile")}>Profile</button>
-      <button onClick={() => navigate("/settings")}>Settings</button>
       <div className="divider"></div>
       <button className="logout" onClick={handleLogout}>Logout</button>
     </div>

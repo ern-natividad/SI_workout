@@ -16,7 +16,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-
+  margin-top: 70px;
   backdrop-filter: blur(6px);
   background: rgba(0, 0, 0, 0.75);
   padding: 20px;
@@ -33,11 +33,19 @@ body {
   box-shadow: 0 0 25px rgba(255, 107, 0, 0.3);
 }
 
+.step-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center
+}
 
 .steps {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  align-content: center;
   position: relative;
+  justify-items: center;
   margin-bottom: 40px;
 }
 
@@ -293,6 +301,9 @@ body {
 /* Step Placeholder Styles */
 .step-placeholder {
   min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  
 }
 
 .step-placeholder h2 {
@@ -493,11 +504,15 @@ select:focus {
 
 .exercise-list {
   margin-top: 25px;
-  max-height: 400px;
+  max-height: 800px;
   overflow-y: auto;
 }
 
 .exercise-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-direction: row;
   border: 2px solid #ff6b00;
   border-radius: 10px;
   padding: 15px;
@@ -505,6 +520,14 @@ select:focus {
   background: rgba(20, 20, 20, 0.9);
   transition: 0.25s ease;
   cursor: pointer;
+}
+
+.exercise-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: #fff;
 }
 
 .exercise-item:hover {
@@ -537,6 +560,12 @@ select:focus {
   gap: 20px;
   width: 100%;
 }
+
+.finish-btn {
+  width: 100%;
+  max-width: 100%;
+}
+
 
 
 .prev-btn,

@@ -51,25 +51,60 @@ export const AuthProvider = ({ children }) => {
   
   // Mock initialization hook (simulates checking if user is already logged in)
   useEffect(() => {
-    const storedId = sessionStorage.getItem('userId');
-    const storedToken = sessionStorage.getItem('authToken');
-    const storedWeight = sessionStorage.getItem('userWeight');
-    const storedHeight = sessionStorage.getItem('userHeight');
-    
-    if (storedId && storedToken) {
-        // Here, you would validate the token with your backend.
-        // Assume the stored ID is valid for now.
-        setUserId(parseInt(storedId, 10));
-        setUserWeight(storedWeight);
-        setUserHeight(storedHeight);
-        setIsAuthenticated(true);
-        console.debug('AuthContext: initialized from sessionStorage', { storedId, storedToken, storedWeight });
-    }
+    let cancelled = false;
+
+    const init = async () => {
+      const storedId = sessionStorage.getItem('userId');
+      const storedToken = sessionStorage.getItem('authToken');
+      const storedWeight = sessionStorage.getItem('userWeight');
+      const storedHeight = sessionStorage.getItem('userHeight');
+
+      if (storedId && storedToken) {
+        // Validate stored token/user by fetching user data from the Node API.
+        try {
+          const res = await fetch(`/api/users/${storedId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (!cancelled && data && data.success && data.user) {
+              setUserId(parseInt(storedId, 10));
+              setUserWeight(storedWeight ?? data.user.weight ?? null);
+              setUserHeight(storedHeight ?? data.user.height ?? null);
+              setIsAuthenticated(true);
+              // persist server-side avatar if provided
+              if (data.user.profile_image) {
+                sessionStorage.setItem('userAvatar', data.user.profile_image);
+              }
+              console.debug('AuthContext: initialized and validated from API', { storedId });
+              return;
+            }
+          }
+        } catch (e) {
+          console.debug('AuthContext: token validation failed', e);
+        }
+      }
+
+      // If we reach here, validation failed or no stored token — clear partial/stale state
+      sessionStorage.removeItem('authToken');
+      sessionStorage.removeItem('userId');
+      sessionStorage.removeItem('userWeight');
+      sessionStorage.removeItem('userHeight');
+      sessionStorage.removeItem('userAvatar');
+      setUserId(null);
+      setUserWeight(null);
+      setUserHeight(null);
+      setIsAuthenticated(false);
+      console.debug('AuthContext: cleared stale auth state');
+    };
+
+    init();
 
     // Listen for global logout events (dispatched by middleware on 401)
     const handleGlobalLogout = () => logout();
     window.addEventListener('auth-logout', handleGlobalLogout);
-    return () => window.removeEventListener('auth-logout', handleGlobalLogout);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('auth-logout', handleGlobalLogout);
+    };
   }, []);
 
   const value = {

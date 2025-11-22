@@ -21,7 +21,8 @@ function LoginPage() {
     password: ''
   });
 
-  const apiUrl = '/api/auth/login';
+  const API_BASE = import.meta.env.VITE_API_BASE || '';
+  const apiUrl = API_BASE + '/api/auth/login';
 
   const handleSubmit = async (e) => {
     e.preventDefault();

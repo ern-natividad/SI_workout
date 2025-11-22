@@ -41,5 +41,16 @@
     "upper legs",
     "waist"
   ],
-  "imagesByName": {}
+  "imagesByName": {
+    "push up": "/avatar.png",
+    "squat": "/avatar.png",
+    "deadlift": "/avatar.png",
+    "bench press": "/avatar.png",
+    "pull up": "/avatar.png",
+    "lunge": "/avatar.png",
+    "plank": "/avatar.png",
+    "bicep curl": "/avatar.png",
+    "tricep dip": "/avatar.png",
+    "burpee": "/avatar.png"
+  }
 }

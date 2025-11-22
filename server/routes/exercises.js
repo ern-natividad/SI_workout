@@ -250,6 +250,20 @@ router.get('/name/:name', async (req, res) => {
 
       return res.json(r.data);
     }
+
+    // If RapidAPI returned non-200 (rate limit, etc), try snapshot fallback for image URL by name
+    console.warn(`/api/exercises/name: RapidAPI returned ${r.status} for name=${name} - trying snapshot fallback`);
+    try {
+      const snap = readSnapshot() || {};
+      const imagesMap = snap.imagesByName && typeof snap.imagesByName === 'object' ? snap.imagesByName : {};
+      if (imagesMap[name]) {
+        // return a minimal shape similar to RapidAPI response so client can pick gifUrl
+        return res.json([{ gifUrl: imagesMap[name], name }]);
+      }
+    } catch (e) {
+      console.warn('imagesByName fallback failed', e);
+    }
+
     return res.status(r.status).json({ message: r.data });
   } catch (error) {
     console.error('Error proxying name:', error);

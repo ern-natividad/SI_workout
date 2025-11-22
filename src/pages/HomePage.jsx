@@ -92,6 +92,7 @@ const HomePage = () => {
       cardio: '/bodyparts/cardio.jpg',
     };
 
+    const API_BASE = import.meta.env.VITE_API_BASE || '';
     const EXERCISE_DB_HOST = 'exercisedb.p.rapidapi.com';
 
     // Query metadata by name and return a candidate gifUrl (or empty string)
@@ -119,8 +120,8 @@ const HomePage = () => {
         if (candidate) {
           try {
             const u = new URL(candidate);
-            if (u.hostname === EXERCISE_DB_HOST && upstreamId) {
-              return { ...ex, gifUrl: `/api/exercises/imageById?exerciseId=${encodeURIComponent(upstreamId)}&resolution=360` };
+              if (u.hostname === EXERCISE_DB_HOST && upstreamId) {
+              return { ...ex, gifUrl: API_BASE + `/api/exercises/imageById?exerciseId=${encodeURIComponent(upstreamId)}&resolution=360` };
             }
           } catch (e) {
             // ignore URL parse errors and fall back to candidate value
@@ -132,7 +133,7 @@ const HomePage = () => {
         // No candidate gifUrl found; if upstream metadata gave us an exercisedb id,
         // use it to build an id-based proxy so the image matches the upstream exercise.
         if (!candidate && upstreamId) {
-          return { ...ex, gifUrl: `/api/exercises/imageById?exerciseId=${encodeURIComponent(upstreamId)}&resolution=360` };
+          return { ...ex, gifUrl: API_BASE + `/api/exercises/imageById?exerciseId=${encodeURIComponent(upstreamId)}&resolution=360` };
         }
 
         return ex;
@@ -281,15 +282,6 @@ const HomePage = () => {
             <p>
               Every step you take today brings you closer to your strongest self.
             </p>
-
-            <div className="hp-hero-cta">
-              <Link to="/information_setup" className="hp-primary">
-                Create Workout
-              </Link>
-              <Link to="/statistics" className="hp-secondary">
-                View Progress
-              </Link>
-            </div>
           </div>
         </div>
       </div>
@@ -324,7 +316,18 @@ const HomePage = () => {
 
         {/* If active plan exists and has exercises, show grid */}
         {!loading && exercises.length > 0 && !selectedExercise && (
+          
           <div className="exercises-grid">
+
+            <div className="hp-hero-cta">
+              <Link to="/information_setup" className="hp-primary">
+                Create Workout
+              </Link>
+              <Link to="/statistics" className="hp-secondary">
+                View Progress
+              </Link>
+            </div>
+
             {exercises.map((ex, idx) => (
               <div key={ex.id} className="exercise-card" onClick={() => handleExerciseClick(ex, idx)}>
                 <div className="exercise-card-header" 
