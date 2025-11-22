@@ -109,3 +109,34 @@ If you want, I can:
 - Create provider-specific steps for Heroku/Render/Vercel with exact env var locations.
 
 End of deploy guide.
+
+---
+
+Docker (local production testing)
+
+1. Build the frontend locally from the repository root:
+
+```pwsh
+npm install
+npm run build
+```
+
+2. You can either copy `dist/` into `server/public` or let the `server/Dockerfile` try to copy `../dist` when building. To copy manually:
+
+```pwsh
+rm -rf server/public/*
+cp -R dist/* server/public/
+```
+
+3. Start the stack for local testing (MySQL + backend):
+
+```pwsh
+docker-compose up --build
+```
+
+4. The backend will be available at `http://localhost:5000`. Import the `workout_app.sql` into the local MySQL on port 3306.
+
+Notes:
+- The included `docker-compose.yml` is for local testing and convenience only. For production, use a managed DB and a proper CI/CD flow.
+- Ensure you set secure environment variables (especially `JWT_SECRET`) either in your host or when running containers.
+

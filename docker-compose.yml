@@ -1,0 +1,36 @@
+version: '3.8'
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: example_root_pw
+      MYSQL_DATABASE: workout_app
+      MYSQL_USER: workout
+      MYSQL_PASSWORD: workout_pw
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
+  backend:
+    build: ./server
+    depends_on:
+      - db
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      DB_HOST: db
+      DB_USER: workout
+      DB_PASSWORD: workout_pw
+      DB_NAME: workout_app
+      JWT_SECRET: change_me_in_prod
+      RAPIDAPI_KEY: ''
+      FRONTEND_URL: http://localhost:5186
+    volumes:
+      - ./server/public:/app/public:rw
+      - ./public/uploads:/app/public/uploads:rw
+
+volumes:
+  db_data:

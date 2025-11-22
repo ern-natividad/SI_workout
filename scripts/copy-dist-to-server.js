@@ -1,7 +1,7 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
-(async () => {
+const run = async () => {
   try {
     const root = process.cwd();
     const dist = path.resolve(root, 'dist');
@@ -37,4 +37,6 @@ const path = require('path');
     console.error('Failed to copy dist to server/dist', err);
     process.exit(1);
   }
-})();
+};
+
+run();
