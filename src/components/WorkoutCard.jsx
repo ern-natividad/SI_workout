@@ -94,6 +94,10 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
                 // Use the user's weight if available, otherwise null
                 const weightKg = Number(userWeight) || null;
 
+                // Format completed_at as MySQL-compatible datetime (YYYY-MM-DD HH:MM:SS)
+                const iso = new Date().toISOString();
+                const completedAt = iso.slice(0, 19).replace('T', ' ');
+
                 const result = await fetchWithMiddleware(
                     '/api/workouts/complete',
                     {
@@ -106,7 +110,7 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
                                 name: ex.name,
                                 sets_completed: ex.totalSets,
                             })),
-                            completed_at: new Date().toISOString(),
+                            completed_at: completedAt,
                             weight_kg: weightKg,
                             calories_burned: calories,
                             mark_plan_complete: true,
@@ -165,6 +169,10 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
             const calories = estimateCaloriesFromExercises(allExercises);
             const weightKg = Number(userWeight) || null;
 
+            // Format completed_at for MySQL compatibility
+            const iso = new Date().toISOString();
+            const completedAt = iso.slice(0, 19).replace('T', ' ');
+
             const response = await fetchWithMiddleware(
                 '/api/workouts/complete',
                 {
@@ -177,7 +185,7 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
                             name: ex.name,
                             sets_completed: ex.totalSets,
                         })),
-                        completed_at: new Date().toISOString(),
+                        completed_at: completedAt,
                         weight_kg: weightKg,
                         calories_burned: calories,
                         // Do NOT mark the plan complete when the user manually finishes
