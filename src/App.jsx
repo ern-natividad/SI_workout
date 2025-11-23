@@ -22,6 +22,7 @@ import HeartRate from './pages/HeartRate';
 import Profile from './pages/Profile';
 import ProfileEdit from './pages/ProfileEdit';
 
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   const location = useLocation();
@@ -89,17 +90,17 @@ function App() {
         <Route path="/tdee" element={<TDEECalculator />} />
         <Route path="/bmi" element={<BMI />} />
         <Route path="/heartrate" element={<HeartRate />} />
-        <Route path="/tools" element={<Tools />} />
+        <Route path="/tools" element={<ProtectedRoute><Tools /></ProtectedRoute>} />
 
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/profile/edit" element={<ProfileEdit />} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
         
         
 
-        <Route path="/homepage" element={<HomePage />} />
-        <Route path='/information_setup' element={<InformationSetup />} />
-        <Route path="/statistics" element={<StatisticsPage />} />
-        <Route path="/workout" element={<WorkoutPage />} />
+        <Route path="/homepage" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+        <Route path='/information_setup' element={<ProtectedRoute><InformationSetup /></ProtectedRoute>} />
+        <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />
+        <Route path="/workout" element={<ProtectedRoute><WorkoutPage /></ProtectedRoute>} />
 
         <Route path="*" element={<h2>404 Page Not Found</h2>} />
       </Routes>

@@ -190,18 +190,18 @@ const StatisticsPage = () => {
             const handleDelete = async () => {
               if (!window.confirm('Delete this workout history entry? This cannot be undone.')) return;
               try {
-                // Try DELETE endpoint. If backend differs, this will fail silently and we keep optimistic UI.
+                // Call DELETE endpoint and only remove locally if server confirms deletion.
                 const res = await fetchWithMiddleware(`/api/workouts/delete?id=${p.id}`, { method: 'DELETE' });
                 if (res && (res.success || res.deleted)) {
                   setProgress(prev => prev.filter(item => item.id !== p.id));
                 } else {
-                  // If backend didn't return success, still remove locally for UX and log.
                   console.warn('Delete request did not confirm deletion:', res);
-                  setProgress(prev => prev.filter(item => item.id !== p.id));
+                  alert('Server did not confirm deletion. Please try again.');
                 }
               } catch (err) {
                 console.error('Failed to delete workout:', err);
-                alert('Failed to delete workout. See console for details.');
+                // If the failure is unauthorized, fetchWithMiddleware will dispatch auth-logout.
+                alert('Failed to delete workout. Check your network/authentication and try again.');
               }
             };
 
