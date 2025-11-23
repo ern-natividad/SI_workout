@@ -1,7 +1,7 @@
 .tools-wrapper {
   min-height: 100vh;
   width: 100%;
-  background: url("background.jpg") center/cover no-repeat fixed;
+  background: url("/background.jpg") center/cover fixed;
   display: flex;
   justify-content: center;
   padding-top: 100px;
@@ -49,12 +49,30 @@
   box-shadow: 0 0 35px rgba(255, 107, 0, 0.6);
 }
 
-.tool-icon img {
-  width: 60px;
-  height: 60px;
-  filter: none !important;
-  box-shadow: none !important;
-  margin-bottom: 10px;
+.tool-icon {
+  margin-bottom: 20px;
+}
+
+.icon-calculator, .icon-scale, .icon-heart {
+  font-size: 3rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 107, 0, 0.2), rgba(255, 107, 0, 0.1));
+  border: 2px solid rgba(255, 107, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.tool-card:hover .icon-calculator,
+.tool-card:hover .icon-scale,
+.tool-card:hover .icon-heart {
+  transform: scale(1.1);
+  border-color: rgba(255, 107, 0, 0.6);
+  box-shadow: 0 0 20px rgba(255, 107, 0, 0.4);
 }
 
 .tool-name {
@@ -89,12 +107,135 @@
   box-shadow: 0 0 10px #ff6b00;
 }
 
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .tools-wrapper {
+    padding-top: 80px;
+  }
+  
+  .tools-overlay {
+    padding: 15px;
+  }
+  
+  .tools-title {
+    font-size: 2.2rem;
+    margin-bottom: 8px;
+  }
+  
+  .tools-subtitle {
+    font-size: 1rem;
+    margin-bottom: 30px;
+  }
+  
+  .tools-container {
+    gap: 25px;
+  }
+  
+  .tool-card {
+    width: 280px;
+    padding: 25px;
+  }
+  
+  .icon-calculator, .icon-scale, .icon-heart {
+    width: 70px;
+    height: 70px;
+    font-size: 2.5rem;
+  }
+  
+  .tool-name {
+    font-size: 1.2rem;
+  }
+  
+  .tool-desc {
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+  }
+  
+  .tool-btn {
+    padding: 10px;
+    font-size: 0.95rem;
+  }
+}
 
-.tool-img {
-  width: 70px;
-  height: 70px;
-  object-fit: contain;
-  filter: drop-shadow(0 0 10px #ff6b00aa);
+@media (max-width: 480px) {
+  .tools-wrapper {
+    padding-top: 70px;
+  }
+  
+  .tools-overlay {
+    padding: 10px;
+  }
+  
+  .tools-title {
+    font-size: 1.8rem;
+  }
+  
+  .tools-subtitle {
+    font-size: 0.9rem;
+    margin-bottom: 25px;
+  }
+  
+  .tools-container {
+    gap: 20px;
+  }
+  
+  .tool-card {
+    width: 100%;
+    max-width: 320px;
+    padding: 20px;
+  }
+  
+  .icon-calculator, .icon-scale, .icon-heart {
+    width: 60px;
+    height: 60px;
+    font-size: 2rem;
+  }
+  
+  .tool-name {
+    font-size: 1.1rem;
+  }
+  
+  .tool-desc {
+    font-size: 0.85rem;
+  }
+  
+  .tool-btn {
+    padding: 8px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .tools-title {
+    font-size: 1.6rem;
+  }
+  
+  .tools-subtitle {
+    font-size: 0.85rem;
+  }
+  
+  .tool-card {
+    padding: 15px;
+  }
+  
+  .icon-calculator, .icon-scale, .icon-heart {
+    width: 50px;
+    height: 50px;
+    font-size: 1.8rem;
+  }
+  
+  .tool-name {
+    font-size: 1rem;
+  }
+  
+  .tool-desc {
+    font-size: 0.8rem;
+  }
+  
+  .tool-btn {
+    padding: 6px;
+    font-size: 0.85rem;
+  }
 }
 
 

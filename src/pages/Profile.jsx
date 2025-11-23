@@ -66,22 +66,22 @@ const Profile = () => {
 
 				<div className="profile-body">
 					<div className="profile-stats">
-						<div className="stat">
+						<div className="stat-item">
 							<div className="stat-label">Weight</div>
 							<div className="stat-value">{user.weight || '—'} kg</div>
 						</div>
 
-						<div className="stat">
+						<div className="stat-item">
 							<div className="stat-label">Height</div>
 							<div className="stat-value">{user.height || '—'} cm</div>
 						</div>
 
-						<div className="stat">
+						<div className="stat-item">
 							<div className="stat-label">Age</div>
 							<div className="stat-value">{user.age || '—'}</div>
 						</div>
 
-						<div className="stat">
+						<div className="stat-item">
 							<div className="stat-label">Gender</div>
 							<div className="stat-value">{user.gender || '—'}</div>
 						</div>

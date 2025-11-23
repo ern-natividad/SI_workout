@@ -1,4 +1,6 @@
 
+/* TDEE page styles - Updated Nov 23 2025 with orange theme and better spacing */
+
 .tdee-wrapper {
   background: url("/background.jpg") center/cover fixed;
   min-height: 100vh;
@@ -10,15 +12,17 @@
 
 
 .tdee-container {
-  background: rgba(0, 0, 0, 0.75);
-  border: 2px solid #ff6b00;
-  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(20, 20, 30, 0.8));
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+  border-radius: 20px;
   padding: 40px;
   width: 100%;
-  max-width: 650px;
-  box-shadow: 0 0 20px rgba(255, 107, 0, 0.3);
+  max-width: 700px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   color: white;
-  text-align: center;
+  text-align: left;
   margin-top: 50px;
 }
 
@@ -124,19 +128,33 @@
   margin-top: 35px;
 }
 
+.tdee-results h2 {
+  color: #fff;
+  font-size: 24px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
 .result-box {
   background: rgba(255, 107, 0, 0.12);
   border: 1px solid #ff6b00;
-  padding: 12px 20px;
+  padding: 15px 25px;
   border-radius: 10px;
-  margin: 12px 0;
+  margin: 15px 0;
   display: flex;
   justify-content: space-between;
   font-size: 18px;
+  transition: all 0.3s ease;
+}
+
+.result-box:hover {
+  background: rgba(255, 107, 0, 0.18);
+  transform: translateY(-2px);
 }
 
 .result-box strong {
   font-size: 22px;
+  color: #ff6b00;
 }
 
 .note {
@@ -149,38 +167,72 @@
 /* New layout styles for summary and macros (responsive) */
 .tdee-summary {
   display: flex;
-  gap: 12px;
+  gap: 20px;
+  margin-bottom: 30px;
 }
 
 .summary-card {
   background: rgba(255,255,255,0.02);
-  padding: 12px;
+  padding: 20px;
   border-radius: 8px;
   text-align: center;
+  flex: 1;
 }
 .summary-label {
-  font-size: 13px;
+  font-size: 14px;
   color: #ddd;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   font-weight: 600;
 }
 .summary-value {
   color: #fff;
   font-weight: 800;
+  font-size: 22px;
 }
 
 .macro-grid {
   display: flex;
-  gap: 12px;
+  gap: 20px;
+  margin-top: 20px;
 }
 .macro-card {
   background: rgba(255,255,255,0.02);
   border-radius: 8px;
-  padding: 12px;
+  padding: 20px;
+  flex: 1;
 }
-.macro-label { color: #ddd; font-weight:600; margin-bottom:6px }
-.macro-grams { color: #fff }
-.macro-kcal { color: #ccc }
+.macro-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 6px;
+}
+.protein-macro {
+  background: linear-gradient(135deg, #ff6b00, #ff8e33);
+}
+.carbs-macro {
+  background: linear-gradient(135deg, #ffa04d, #ffb366);
+}
+.fat-macro {
+  background: linear-gradient(135deg, #ff8533, #ff9966);
+}
+.macro-label { 
+  color: #fff; 
+  font-weight: 600; 
+  margin-bottom: 8px;
+}
+.macro-grams { 
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+}
+.macro-kcal { 
+  color: rgba(255,255,255,0.9);
+  text-align: right;
+}
 
 /* Responsive breakpoints */
 @media (max-width: 900px) {
@@ -189,10 +241,174 @@
   .tdee-row { flex-direction: column }
 }
 
+@media (max-width: 768px) {
+  .tdee-wrapper {
+    padding: 40px 15px;
+  }
+  
+  .tdee-container {
+    padding: 25px 20px;
+    margin-top: 30px;
+  }
+  
+  .tdee-title {
+    font-size: 32px;
+  }
+  
+  .tdee-desc {
+    font-size: 14px;
+  }
+  
+  .tdee-field label {
+    font-size: 13px;
+  }
+  
+  .tdee-field input,
+  .tdee-field select {
+    padding: 10px;
+    font-size: 14px;
+  }
+  
+  .tdee-btn {
+    padding: 12px;
+    font-size: 16px;
+  }
+  
+  .result-box {
+    font-size: 16px;
+    padding: 10px 15px;
+  }
+  
+  .result-box strong {
+    font-size: 18px;
+  }
+}
+
 @media (max-width: 520px) {
-  .tdee-container { padding: 20px }
+  .tdee-wrapper {
+    padding: 25px 12px;
+  }
+  
+  .tdee-container { 
+    padding: 20px 15px;
+    margin-top: 20px;
+  }
+  
   .macro-grid { flex-direction: column }
-  .tdee-summary { gap: 10px }
-  .tdee-title { font-size: 28px }
+  .tdee-summary { 
+    gap: 15px;
+    margin-bottom: 25px;
+  }
+  .tdee-title { font-size: 24px }
   .result-box { flex-direction: column; align-items: flex-start }
+  
+  .tdee-desc {
+    font-size: 12px;
+  }
+  
+  .tdee-field input,
+  .tdee-field select {
+    padding: 8px;
+    font-size: 12px;
+  }
+  
+  .tdee-btn {
+    padding: 10px;
+    font-size: 14px;
+  }
+  
+  .summary-card {
+    padding: 15px;
+  }
+  
+  .summary-label {
+    font-size: 12px;
+  }
+  
+  .macro-card {
+    padding: 15px;
+  }
+  
+  .macro-label {
+    font-size: 12px;
+  }
+  
+  .note {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .tdee-wrapper {
+    padding: 20px 10px;
+  }
+  
+  .tdee-container { 
+    padding: 18px 12px;
+  }
+  
+  .tdee-title { 
+    font-size: 20px;
+  }
+  
+  .tdee-desc {
+    font-size: 11px;
+  }
+  
+  .tdee-field label {
+    font-size: 11px;
+  }
+  
+  .tdee-field input,
+  .tdee-field select {
+    padding: 6px;
+    font-size: 11px;
+  }
+  
+  .tdee-btn {
+    padding: 8px;
+    font-size: 12px;
+  }
+  
+  .result-box {
+    font-size: 14px;
+    padding: 8px 12px;
+  }
+  
+  .result-box strong {
+    font-size: 16px;
+  }
+  
+  .tdee-summary {
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  
+  .summary-card {
+    padding: 12px;
+  }
+  
+  .summary-label {
+    font-size: 11px;
+  }
+  
+  .macro-card {
+    padding: 12px;
+  }
+  
+  .macro-label {
+    font-size: 11px;
+  }
+  
+  .macro-grams {
+    font-size: 18px;
+  }
+  
+  .macro-kcal {
+    font-size: 10px;
+  }
+  
+  .note {
+    font-size: 11px;
+  }
 }
