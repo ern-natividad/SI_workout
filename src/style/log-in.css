@@ -28,6 +28,7 @@ html, body, #root {
   justify-content: center;
   align-items: center;
   overflow: hidden;
+  padding-top: 100px !important;
 }
 
 
@@ -158,19 +159,100 @@ p a:hover {
   z-index: 3;
   color: #fff;
   background: rgba(255, 107, 0, 0.9);
-  padding: 8px 18px;
-  border-radius: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
   font-weight: 600;
   text-decoration: none;
   transition: 0.3s ease;
   box-shadow: 0 0 10px rgba(255, 107, 0, 0.4);
-  font-size: small;
+  font-size: 0.8rem;
 }
 
 .back-btn:hover {
   background: #ffa04d;
   transform: scale(1.05);
   box-shadow: 0 0 18px rgba(255, 107, 0, 0.6);
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .login-container {
+    margin: 0 20px !important;
+  }
+  
+  .login-box {
+    width: 90%;
+    max-width: 320px;
+    padding: 25px 20px;
+  }
+  
+  .login-box h2 {
+    font-size: 20px;
+    margin-bottom: 15px;
+  }
+  
+  label {
+    font-size: 13px;
+    margin-top: 8px;
+  }
+  
+  input {
+    padding: 8px;
+    font-size: 13px;
+  }
+  
+  button {
+    padding: 10px;
+    font-size: 14px;
+    margin-top: 20px;
+  }
+  
+  .back-btn {
+    top: 15px;
+    left: 15px;
+    font-size: 0.75rem;
+    padding: 5px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-container {
+    margin: 0 15px !important;
+  }
+  
+  .login-box {
+    width: 90%;
+    max-width: 280px;
+    padding: 20px 15px;
+  }
+  
+  .login-box h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+  
+  label {
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  
+  input {
+    padding: 6px;
+    font-size: 12px;
+  }
+  
+  button {
+    padding: 8px;
+    font-size: 13px;
+    margin-top: 15px;
+  }
+  
+  .back-btn {
+    top: 12px;
+    left: 12px;
+    font-size: 0.7rem;
+    padding: 4px 8px;
+  }
 }
 
 
