@@ -296,8 +296,15 @@ router.get('/image', async (req, res) => {
 
     const buf = Buffer.from(await r.arrayBuffer());
     const contentType = r.headers.get('content-type') || 'application/octet-stream';
+    // Allow browsers on your frontend origin to load this proxied image even when
+    // helmet sets stricter cross-origin headers globally. Set a permissive
+    // Cross-Origin-Resource-Policy for image responses so they can be embedded.
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=86400');
+    // Mirror configured FRONTEND_URL or allow any origin if not set (safe for images only)
+    const FRONTEND_URL = process.env.FRONTEND_URL || process.env.VITE_API_BASE || '*';
+    res.setHeader('Access-Control-Allow-Origin', FRONTEND_URL);
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     return res.send(buf);
   } catch (err) {
     console.error('Image proxy error:', err);
@@ -325,8 +332,13 @@ router.get('/image/:id', async (req, res) => {
 
     const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
     const buffer = Buffer.from(await upstream.arrayBuffer());
+    // See note above: ensure image responses can be embedded by browsers on the
+    // configured frontend by adjusting the resource policy for these routes.
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=86400');
+    const FRONTEND_URL2 = process.env.FRONTEND_URL || process.env.VITE_API_BASE || '*';
+    res.setHeader('Access-Control-Allow-Origin', FRONTEND_URL2);
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     return res.send(buffer);
   } catch (err) {
     console.error('Error proxying image:', err);
@@ -363,8 +375,12 @@ router.get('/imageById', async (req, res) => {
 
     const buffer = Buffer.from(await upstream.arrayBuffer());
     const contentType = upstream.headers.get('content-type') || 'image/gif';
+    // Adjust response headers so the frontend can embed the proxied image.
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=86400');
+    const FRONTEND_URL3 = process.env.FRONTEND_URL || process.env.VITE_API_BASE || '*';
+    res.setHeader('Access-Control-Allow-Origin', FRONTEND_URL3);
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     return res.send(buffer);
   } catch (err) {
     console.error('Error proxying imageById:', err);
