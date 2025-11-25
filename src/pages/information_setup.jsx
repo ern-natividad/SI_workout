@@ -7,6 +7,9 @@ import placeholderImg from "../assets/background.jpg";
 import { useAuth } from "../components/AuthContext";
 import ExerciseImage from "../components/ExerciseImage";
 
+// Helper to pick id from exercise metadata
+const pickId = (obj) => obj && (obj.id || null);
+
 const InformationSetup = () => {
   const navigate = useNavigate();
   const { userId: authUserId, isAuthenticated } = useAuth();
@@ -150,6 +153,62 @@ const InformationSetup = () => {
 
   const nextStep = () => setStep((prev) => Math.min(prev + 1, 3));
   const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
+
+  // Fetch exercise metadata to get gifUrl or id for image proxy
+  useEffect(() => {
+    if (exerciseList.length === 0) return;
+    if (exerciseList.every((e) => e && e.gifUrl)) return; // already have gifUrl for all
+
+    let mounted = true;
+
+    const fetchImages = async () => {
+      const API_BASE = import.meta.env.VITE_API_BASE || '';
+      const results = [];
+
+      for (const ex of exerciseList) {
+        if (!mounted) return;
+
+        // If already has gifUrl, keep it
+        if (ex.gifUrl) {
+          results.push(ex);
+          continue;
+        }
+
+        try {
+          // Fetch metadata by name to get upstream id
+          const name = ex.name || '';
+          const data = await fetchWithMiddleware(`/api/exercises/name/${name}`, { method: 'GET' });
+
+          let upstreamId = null;
+          if (Array.isArray(data) && data.length > 0) {
+            upstreamId = pickId(data[0]);
+          } else if (data && typeof data === 'object') {
+            upstreamId = pickId(data);
+          }
+
+          // Prefer id-based proxy URL if we have upstream id (most reliable)
+          if (upstreamId) {
+            results.push({ ...ex, gifUrl: API_BASE + `/api/exercises/imageById?exerciseId=${encodeURIComponent(upstreamId)}&resolution=360` });
+          } else {
+            results.push(ex);
+          }
+
+          // Small delay to be gentle on the API
+          await new Promise((rsv) => setTimeout(rsv, 40));
+        } catch (err) {
+          // On error, just keep the exercise without gifUrl
+          results.push(ex);
+        }
+      }
+
+      if (mounted) {
+        setExerciseList(results);
+      }
+    };
+
+    fetchImages();
+    return () => { mounted = false; };
+  }, [exerciseList.length]); // Re-run only when list size changes
 
   const handleSubmit = async (e) => {
     e.preventDefault();
