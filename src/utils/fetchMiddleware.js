@@ -4,7 +4,17 @@
 // - handles 401 by clearing session storage (caller can handle redirect)
 
 export async function fetchWithMiddleware(url, options = {}) {
-  const API_BASE = import.meta.env.VITE_API_BASE || '';
+  // Prefer explicit VITE_API_BASE when provided. When missing in dev, default
+  // to the backend port used by the Express server so calls go directly
+  // to the API instead of relying on a dev proxy configuration.
+  let API_BASE = import.meta.env.VITE_API_BASE || '';
+  try {
+    if (!API_BASE && typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost') {
+      API_BASE = 'http://localhost:5000';
+    }
+  } catch (e) {
+    // ignore in non-browser environments
+  }
   const token = sessionStorage.getItem('authToken');
 
   const defaultHeaders = {

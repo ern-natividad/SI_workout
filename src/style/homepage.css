@@ -187,10 +187,11 @@
 
 /* EXERCISE GRID CARDS */
 .exercises-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   margin-top: 20px;
+  align-items: flex-start;
 }
 
 .exercise-card {
@@ -234,6 +235,29 @@
   gap: 70px;
 }
 
+/* CTA and card stacking for single-column layout */
+.exercises-grid .hp-hero-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 280px; /* desktop CTA width */
+}
+
+.exercises-grid .hp-hero-cta .hp-primary,
+.exercises-grid .hp-hero-cta .hp-secondary {
+  width: 100%;
+  display: block;
+  text-align: center;
+}
+
+/* Exercise cards should take full width but be capped for readability */
+.exercises-grid .exercise-card {
+  width: 100%;
+  max-width: 760px;
+}
+
 @media (max-width: 480px) {
   .responsive-ex-header {
     flex-direction: column !important;
@@ -253,6 +277,16 @@
   object-fit: cover;
   border-radius: 8px;
   flex-shrink: 0;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+/* image class used by ExerciseImage component */
+.exercise-thumb {
+  width: 240px;
+  height: 240px;
+  object-fit: contain;
+  border-radius: 8px;
   background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,255,255,0.03);
 }
@@ -320,7 +354,8 @@
   }
   
   .hp-hero-cta {
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
     gap: 12px;
     margin-top: 20px;
   }
@@ -361,8 +396,10 @@
   }
   
   .exercises-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 15px;
+    align-items: stretch;
   }
   
   .exercise-img {
@@ -390,6 +427,93 @@
   .exercise-card-btn {
     padding: 10px 15px;
     font-size: 13px;
+  }
+}
+
+/* Tablet: make CTA column slightly narrower and reduce gaps */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .exercises-grid {
+    flex-direction: column;
+    gap: 18px;
+    align-items: flex-start;
+  }
+
+  .exercise-card-header,
+  .responsive-ex-header {
+    gap: 40px;
+  }
+
+  .exercises-grid .hp-hero-cta {
+    width: 220px;
+  }
+
+  .exercise-thumb {
+    width: 180px;
+    height: 180px;
+  }
+}
+
+/* Small desktops and large tablets: keep CTA left column but allow more flexible card widths */
+@media (min-width: 1025px) and (max-width: 1366px) {
+  .exercises-grid {
+    flex-direction: column;
+    gap: 18px;
+    align-items: flex-start;
+  }
+
+  .exercises-grid .hp-hero-cta {
+    width: 240px;
+  }
+
+  .exercise-thumb {
+    width: 220px;
+    height: 220px;
+  }
+}
+
+/* Mobile / small screens: stack CTA above cards and make images compact */
+@media (max-width: 900px) {
+  .exercises-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  /* CTA should span full width and sit above cards */
+  .exercises-grid .hp-hero-cta {
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+    gap: 12px;
+    align-items: center;
+    padding: 6px 0;
+  }
+
+  .exercises-grid .hp-hero-cta .hp-primary,
+  .exercises-grid .hp-hero-cta .hp-secondary {
+    width: auto;
+    padding: 10px 14px;
+    font-size: 0.95rem;
+  }
+
+  .exercise-card-header,
+  .responsive-ex-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    text-align: center;
+  }
+
+  .exercise-thumb,
+  .exercise-img,
+  .exercise-img--placeholder {
+    width: 80px;
+    height: 80px;
+  }
+
+  .exercise-card-btn {
+    width: 100%;
   }
 }
 

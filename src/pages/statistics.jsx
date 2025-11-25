@@ -8,6 +8,7 @@ const StatisticsPage = () => {
   const [progress, setProgress] = useState([]);
   const [expandedWorkouts, setExpandedWorkouts] = useState([]);
   const [workoutsByPlan, setWorkoutsByPlan] = useState({});
+  const [setsByProgress, setSetsByProgress] = useState({});
   const [baseProgress, setBaseProgress] = useState([]);
   const [serverTotals, setServerTotals] = useState(null);
   const { userId } = useAuth();
@@ -184,6 +185,91 @@ const StatisticsPage = () => {
                 }
               }
 
+              // Also fetch per-set data for this progress entry (if not already loaded)
+              if (willExpand && !setsByProgress[p.id]) {
+                try {
+                  // Prefer querying by progress_id (the progress row id) for exact match
+                  const qByProgress = `/api/workouts/sets?progress_id=${p.id}`;
+                  let sr = await fetchWithMiddleware(qByProgress, { method: 'GET' });
+
+                  // If no sets found via progress_id, fall back to time/plan-based query
+                  if (!(sr && sr.success && Array.isArray(sr.sets) && sr.sets.length > 0)) {
+                    const q = `/api/workouts/sets?user_id=${userId}&plan_id=${p.plan_id}&completed_at=${encodeURIComponent(p.completed_at)}`;
+                    sr = await fetchWithMiddleware(q, { method: 'GET' });
+                  }
+                  console.debug('Sets fetch response for progress', p.id, sr);
+                  if (sr && sr.success && Array.isArray(sr.sets) && sr.sets.length > 0) {
+                    // Normalize set rows so rendering can rely on consistent field names
+                    const normalized = sr.sets.map((s, idx) => ({
+                      id: s.id ?? `tmp-${idx}`,
+                      exercise_name: s.exercise_name || s.exercise_name || (s.exercise || s.name) || 'Unknown',
+                      reps: s.reps ?? s.repetition ?? s.rep_count ?? null,
+                      weight_value: (s.weight_value !== undefined && s.weight_value !== null) ? s.weight_value : (s.weight ?? null),
+                      weight_unit: s.weight_unit || s.unit || '',
+                      set_index: s.set_index ?? (s.setIndex ?? (idx + 1)),
+                      created_at: s.created_at || s.createdAt || null,
+                    }));
+                    console.debug('Normalized sets for progress', p.id, normalized);
+                    setSetsByProgress(prev => ({ ...prev, [p.id]: normalized }));
+                  } else {
+                    // Fallback: fetch recent sets for the user and try to match by time window
+                    console.debug('No sets returned for plan/time — attempting fallback fetch by user_id');
+                    try {
+                      const allResp = await fetchWithMiddleware(`/api/workouts/sets?user_id=${userId}`, { method: 'GET' });
+                      const allSets = (allResp && allResp.success && Array.isArray(allResp.sets)) ? allResp.sets : [];
+
+                      // If there are sets, filter them by proximity to the progress completed_at (24h window)
+                      let filtered = [];
+                      if (allSets.length > 0) {
+                        const ref = p.completed_at ? new Date(p.completed_at) : null;
+                        const DAY_MS = 24 * 60 * 60 * 1000;
+
+                        // Try to get exercise names for matching
+                        const planExercises = (workoutsByPlan[p.plan_id] && workoutsByPlan[p.plan_id].length > 0) ? workoutsByPlan[p.plan_id] : exercises;
+                        const names = planExercises.map(e => (typeof e === 'string' ? e : (e.name || e.exercise_name || '') )).filter(Boolean).map(n => n.toLowerCase());
+
+                        filtered = allSets.filter(s => {
+                          // match time window if reference provided
+                          if (ref) {
+                            const created = new Date(s.created_at || s.createdAt || s.createdAt);
+                            if (isNaN(created.getTime())) return false;
+                            const diff = Math.abs(created.getTime() - ref.getTime());
+                            if (diff > DAY_MS) return false;
+                          }
+
+                          // match by exercise name when possible
+                          if (names.length > 0 && s.exercise_name) {
+                            const exName = (s.exercise_name || '').toLowerCase();
+                            return names.some(n => exName.includes(n) || n.includes(exName));
+                          }
+
+                          return true;
+                        });
+                      }
+
+                      // Normalize filtered fallback results as well
+                      const normalizedFiltered = filtered.map((s, idx) => ({
+                        id: s.id ?? `tmp-f-${idx}`,
+                        exercise_name: s.exercise_name || s.exercise || s.name || 'Unknown',
+                        reps: s.reps ?? s.repetition ?? s.rep_count ?? null,
+                        weight_value: (s.weight_value !== undefined && s.weight_value !== null) ? s.weight_value : (s.weight ?? null),
+                        weight_unit: s.weight_unit || s.unit || '',
+                        set_index: s.set_index ?? (s.setIndex ?? (idx + 1)),
+                        created_at: s.created_at || s.createdAt || null,
+                      }));
+                      console.debug('Normalized fallback sets for progress', p.id, normalizedFiltered);
+                      setSetsByProgress(prev => ({ ...prev, [p.id]: normalizedFiltered }));
+                    } catch (fallbackErr) {
+                      console.error('Fallback sets fetch failed:', fallbackErr);
+                      setSetsByProgress(prev => ({ ...prev, [p.id]: [] }));
+                    }
+                  }
+                } catch (err) {
+                  console.error('Failed to fetch sets for progress:', err);
+                  setSetsByProgress(prev => ({ ...prev, [p.id]: [] }));
+                }
+              }
+
               setExpandedWorkouts(prev => prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]);
             };
 
@@ -237,17 +323,49 @@ const StatisticsPage = () => {
                   <div className="history-details" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', justifyItems: 'center', alignItems: 'center', }}>
                     { /** Prefer plan exercises fetched from server, fallback to any embedded exercises */ }
                     {((workoutsByPlan[p.plan_id] || []).length === 0 && exercises.length === 0) && <p>No exercise details available for this workout.</p>}
-                    {(workoutsByPlan[p.plan_id] || exercises).map((ex, idx) => {
-                      const name = typeof ex === 'string' ? ex : (ex.name || ex.exercise_name || ex.title || ex.workout_name || ex.name || 'Exercise');
-                      const sets = ex.sets ?? ex.reps_set ?? ex.set_count ?? ex.sets_count ?? '-';
-                      const reps = ex.reps ?? ex.rep_count ?? ex.repetition ?? ex.reps_count ?? '-';
-                      return (
-                        <div key={idx} className="history-exercise-row" style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                          <div style={{ flex: 1 }}>{name}</div>
-                          <div style={{ width: 120, textAlign: 'right' }}>{sets} sets • {reps} reps</div>
-                        </div>
-                      );
-                    })}
+                    {
+                      // If we have per-set data, show it grouped by exercise name.
+                      (setsByProgress[p.id] && setsByProgress[p.id].length > 0) ? (
+                        (() => {
+                          const arr = setsByProgress[p.id];
+                          const grouped = arr.reduce((acc, s) => {
+                            const key = s.exercise_name || (s.exercise_id ? `id:${s.exercise_id}` : 'Unknown');
+                            if (!acc[key]) acc[key] = [];
+                            acc[key].push(s);
+                            return acc;
+                          }, {});
+
+                          return Object.keys(grouped).map((k, i) => {
+                            const list = grouped[k];
+                            return (
+                              <div key={i} className="history-exercise-row" style={{ width: '100%', padding: '6px 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ flex: 1 }}>{k}</div>
+                                  <div style={{ width: 220, textAlign: 'right' }}>
+                                    {list.map((s, idx2) => (
+                                      <div key={idx2} style={{ fontSize: 13, color: '#ddd' }}>{`Set ${s.set_index || idx2+1}: ${s.reps} reps${s.weight_value ? ` @ ${s.weight_value}${s.weight_unit||''}` : ''}`}</div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          });
+                        })()
+                      ) : (
+                        // Fallback to plan/exercise list if no per-set data
+                        (workoutsByPlan[p.plan_id] || exercises).map((ex, idx) => {
+                          const name = typeof ex === 'string' ? ex : (ex.name || ex.exercise_name || ex.title || ex.workout_name || ex.name || 'Exercise');
+                          const sets = ex.sets ?? ex.reps_set ?? ex.set_count ?? ex.sets_count ?? '-';
+                          const reps = ex.reps ?? ex.rep_count ?? ex.repetition ?? ex.reps_count ?? '-';
+                          return (
+                            <div key={idx} className="history-exercise-row" style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                              <div style={{ flex: 1 }}>{name}</div>
+                              <div style={{ width: 120, textAlign: 'right' }}>{sets} sets • {reps} reps</div>
+                            </div>
+                          );
+                        })
+                      )
+                    }
                   </div>
                 )}
               </div>

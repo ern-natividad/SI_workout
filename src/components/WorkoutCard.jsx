@@ -214,7 +214,23 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
 
     const handleFinishSet = () => {
         if (sets && reps) {
-            const setData = {
+            // Build set payload
+            const setIndex = (completedSets.length || 0) + 1;
+            const setPayload = {
+                user_id: userId,
+                plan_id: planId,
+                exercise_id: currentExercise && currentExercise.id ? currentExercise.id : null,
+                exercise_name: currentExercise && currentExercise.name ? currentExercise.name : null,
+                set_index: setIndex,
+                reps: Number(reps),
+                weight_value: useBodyweight ? null : (weightValue !== '' ? Number(weightValue) : null),
+                weight_unit: useBodyweight ? null : weightUnit,
+                weight_type: useBodyweight ? 'bodyweight' : 'weight',
+                completed_at: new Date().toISOString().slice(0,19).replace('T',' '),
+            };
+
+            // Optimistic UI: add to list immediately, then attempt to persist to server
+            const localSet = {
                 id: Date.now(),
                 sets,
                 reps,
@@ -222,10 +238,48 @@ const WorkoutCard = ({ exercise, index, onClose, userId, planId, onWorkoutComple
                 weightValue: useBodyweight ? 'Bodyweight' : weightValue,
                 weightUnit: useBodyweight ? '' : weightUnit,
             };
-            setCompletedSets([...completedSets, setData]);
-            // Reset form
+            setCompletedSets(prev => [...prev, localSet]);
+            // Clear inputs
             setReps('');
             setWeightValue('');
+
+            // Persist to server and notify user on failure
+            (async () => {
+                // Ensure we have a user id to send
+                let uid = userId;
+                if (!uid) {
+                    // fallback to sessionStorage (older flows may store it there)
+                    uid = sessionStorage.getItem('userId') || sessionStorage.getItem('user_id');
+                }
+                if (!uid) {
+                    console.warn('No userId available when saving set, set will remain local only.', setPayload);
+                    alert('Unable to save set to server: no user ID available. Set saved locally.');
+                    return;
+                }
+                setPayload.user_id = uid;
+
+                console.debug('Saving set payload to server:', setPayload);
+                
+                try {
+                    const res = await fetchWithMiddleware('/api/workouts/set', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(setPayload),
+                    });
+
+                    if (!res || !res.success) {
+                        console.warn('Failed to persist set to server:', res);
+                        alert('Set saved locally but failed to save to server. It will still appear in your session.');
+                    } else {
+                        // Optionally show a small confirmation (unobtrusive)
+                        // e.g. console.debug or small UI cue — using console for now
+                        console.debug('Set saved to server');
+                    }
+                } catch (err) {
+                    console.error('Error saving set to server:', err);
+                    alert('Set saved locally but could not reach server. Check your connection.');
+                }
+            })();
         } else {
             alert('Please fill in Sets and Reps');
         }

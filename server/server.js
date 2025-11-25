@@ -74,6 +74,33 @@ app.use('/api/workouts', workoutRoutes);
 app.use('/api/exercises', exercisesRoutes);
 app.use('/api/users', usersRoutes);
 
+// Debug: print registered routes to help diagnose missing endpoints in dev
+try {
+  const listRoutes = () => {
+    const routes = [];
+    app._router.stack.forEach((middleware) => {
+      if (middleware.route) {
+        // routes registered directly on the app
+        const methods = Object.keys(middleware.route.methods).join(',').toUpperCase();
+        routes.push({ path: middleware.route.path, methods });
+      } else if (middleware.name === 'router' && middleware.handle && middleware.handle.stack) {
+        // router middleware
+        middleware.handle.stack.forEach((handler) => {
+          if (handler.route) {
+            const methods = Object.keys(handler.route.methods).join(',').toUpperCase();
+            routes.push({ path: handler.route.path, methods });
+          }
+        });
+      }
+    });
+    console.log('Registered routes:', routes);
+  };
+  // Delay slightly so all routes are registered
+  setTimeout(listRoutes, 300);
+} catch (err) {
+  console.warn('Could not list routes:', err && err.message);
+}
+
 // Serve uploaded files from the public/uploads folder
 const uploadsDir = path.resolve(process.cwd(), '..', 'public', 'uploads');
 try {

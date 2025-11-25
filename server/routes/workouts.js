@@ -3,6 +3,8 @@ import pool from '../config/database.js';
 
 const router = express.Router();
 
+console.log('workouts routes module loaded');
+
 // Ensure `deleted_at` column exists on the `progress` table for soft-deletes
 (async () => {
   try {
@@ -247,10 +249,27 @@ router.post('/complete', verifyToken, async (req, res) => {
       const calories = req.body.calories_burned ?? null;
       const notes = req.body.notes ?? null;
 
-      await connection.query(
+      const [progResult] = await connection.query(
         'INSERT INTO progress (user_id, plan_id, completed_at, weight_kg, calories_burned, notes) VALUES (?, ?, ?, ?, ?, ?)',
         [user_id, plan_id, completed_at || new Date(), weightKg, calories, notes]
       );
+
+      const progressId = progResult.insertId;
+
+      // Link any recently created progress_sets for this user/plan to this new progress row
+      try {
+        const refTime = completed_at ? new Date(completed_at) : new Date();
+        // Expand linking window to ±24 hours to be more permissive for client/server clock differences
+        const before = new Date(refTime.getTime() - 24 * 60 * 60 * 1000);
+        const after = new Date(refTime.getTime() + 24 * 60 * 60 * 1000);
+        const [linkResult] = await connection.query(
+          `UPDATE progress_sets SET progress_id = ? WHERE user_id = ? AND (plan_id = ? OR plan_id IS NULL) AND created_at BETWEEN ? AND ? AND progress_id IS NULL`,
+          [progressId, user_id, plan_id || null, before, after]
+        );
+        console.log(`Linked ${linkResult.affectedRows} sets to progress_id ${progressId}`);
+      } catch (linkErr) {
+        console.warn('Failed to link progress_sets to progress:', linkErr.message);
+      }
 
       await connection.commit();
       connection.release();
@@ -258,7 +277,8 @@ router.post('/complete', verifyToken, async (req, res) => {
       res.json({
         success: true,
         message: 'Workout progress recorded',
-        plan_closed: Boolean(mark_plan_complete)
+        plan_closed: Boolean(mark_plan_complete),
+        progress_id: progressId
       });
     } catch (error) {
       await connection.rollback();
@@ -271,6 +291,79 @@ router.post('/complete', verifyToken, async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+});
+
+// Record a single completed set. This stores per-set detail so frontend
+// statistics can show every set/reps the user performed.
+// NOTE: This endpoint intentionally allows unauthenticated requests when a
+// client cannot provide a Bearer token (mobile/quick-save usecases). It still
+// requires a `user_id` in the body.
+router.post('/set', async (req, res) => {
+  try {
+    const {
+      user_id, plan_id, exercise_id, exercise_name,
+      set_index, reps, weight_value, weight_unit, weight_type, completed_at
+    } = req.body;
+
+    if (!user_id || !reps) {
+      return res.status(400).json({ success: false, message: 'Missing required fields: user_id, reps' });
+    }
+
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // Ensure a table exists for storing individual set records.
+      await connection.query(
+        `CREATE TABLE IF NOT EXISTS progress_sets (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          progress_id INT NULL,
+          user_id INT NOT NULL,
+          plan_id INT NULL,
+          exercise_id INT NULL,
+          exercise_name VARCHAR(255) NULL,
+          set_index INT NULL,
+          reps INT NULL,
+          weight_value DECIMAL(8,2) NULL,
+          weight_unit VARCHAR(16) NULL,
+          weight_type VARCHAR(32) NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TIMESTAMP NULL DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
+      );
+
+      console.log('Inserting set for user:', { user_id, plan_id, exercise_id, exercise_name, set_index, reps, weight_value, weight_unit, weight_type, completed_at });
+
+      const [insertRes] = await connection.query(
+        `INSERT INTO progress_sets (user_id, plan_id, exercise_id, exercise_name, set_index, reps, weight_value, weight_unit, weight_type, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          user_id,
+          plan_id || null,
+          exercise_id || null,
+          exercise_name || null,
+          set_index || null,
+          reps || null,
+          (weight_value !== undefined && weight_value !== null) ? weight_value : null,
+          weight_unit || null,
+          weight_type || null,
+          completed_at || new Date()
+        ]
+      );
+
+      await connection.commit();
+      connection.release();
+
+      res.json({ success: true, message: 'Set recorded', insertId: insertRes.insertId });
+    } catch (err) {
+      await connection.rollback();
+      connection.release();
+      throw err;
+    }
+  } catch (error) {
+    console.error('Record set error:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -293,8 +386,6 @@ router.delete('/delete', verifyToken, async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
-export default router;
 
 // Progress listing (returns progress records for a user)
 // Example: GET /api/workouts/progress?user_id=3
@@ -328,3 +419,66 @@ router.get('/progress', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
+// Return per-set history for a user. Optional query params: plan_id, completed_at (ISO string)
+router.get('/sets', async (req, res) => {
+  try {
+    const progressId = req.query.progress_id || null;
+    const userId = req.query.user_id || null;
+    const planId = req.query.plan_id || null;
+    const completedAt = req.query.completed_at || null;
+
+    let sql;
+    const params = [];
+
+    if (progressId) {
+      sql = 'SELECT * FROM progress_sets WHERE progress_id = ? AND deleted_at IS NULL';
+      params.push(progressId);
+    } else {
+      if (!userId) return res.status(400).json({ success: false, message: 'user_id is required when progress_id is not provided' });
+      sql = 'SELECT * FROM progress_sets WHERE user_id = ? AND deleted_at IS NULL';
+      params.push(userId);
+
+      if (planId) {
+        sql += ' AND plan_id = ?';
+        params.push(planId);
+      }
+
+      if (completedAt) {
+        // Accept completed_at as a reference and return sets within ±24 hours window
+        const dt = new Date(completedAt);
+        if (!isNaN(dt.getTime())) {
+          const before = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
+          const after = new Date(dt.getTime() + 24 * 60 * 60 * 1000);
+          sql += ' AND created_at BETWEEN ? AND ?';
+          params.push(before);
+          params.push(after);
+        }
+      }
+    }
+
+    sql += ' ORDER BY created_at DESC LIMIT 1000';
+
+    console.log('Querying sets with SQL:', sql, 'params:', params);
+    const [rows] = await pool.query(sql, params);
+    console.log(`Returning ${rows.length} set rows for user ${userId}`);
+    res.json({ success: true, sets: rows });
+  } catch (err) {
+    console.error('Get sets error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Debug: return most recent progress_sets rows for quick inspection during development
+router.get('/recent-sets', async (req, res) => {
+  try {
+    const limit = Math.min(100, parseInt(req.query.limit || '50', 10));
+    const [rows] = await pool.query('SELECT * FROM progress_sets WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ?', [limit]);
+    return res.json({ success: true, sets: rows });
+  } catch (err) {
+    console.error('Recent-sets debug endpoint failed:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+  export default router;
