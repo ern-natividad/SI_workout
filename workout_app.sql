@@ -221,6 +221,28 @@ INSERT INTO `progress` (`id`, `user_id`, `plan_id`, `completed_at`, `weight_kg`,
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `progress_sets`
+--
+
+CREATE TABLE `progress_sets` (
+  `id` int(11) NOT NULL,
+  `progress_id` int(11) DEFAULT NULL,
+  `user_id` int(11) NOT NULL,
+  `plan_id` int(11) DEFAULT NULL,
+  `exercise_id` int(11) DEFAULT NULL,
+  `exercise_name` varchar(255) DEFAULT NULL,
+  `set_index` int(11) DEFAULT NULL,
+  `reps` int(11) DEFAULT NULL,
+  `weight_value` decimal(8,2) DEFAULT NULL,
+  `weight_unit` varchar(16) DEFAULT NULL,
+  `weight_type` varchar(32) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `deleted_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `users`
 --
 
@@ -393,6 +415,15 @@ ALTER TABLE `plan_workouts`
   ADD KEY `workout_id` (`workout_id`);
 
 --
+-- Indexes for table `progress_sets`
+--
+ALTER TABLE `progress_sets`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `progress_id` (`progress_id`),
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `plan_id` (`plan_id`);
+
+--
 -- Indexes for table `progress`
 --
 ALTER TABLE `progress`
@@ -445,6 +476,12 @@ ALTER TABLE `plan_workouts`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=73;
 
 --
+-- AUTO_INCREMENT for table `progress_sets`
+--
+ALTER TABLE `progress_sets`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `progress`
 --
 ALTER TABLE `progress`
@@ -484,6 +521,14 @@ ALTER TABLE `bmi_records`
 ALTER TABLE `plan_workouts`
   ADD CONSTRAINT `plan_workouts_ibfk_1` FOREIGN KEY (`plan_id`) REFERENCES `workout_plans` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `plan_workouts_ibfk_2` FOREIGN KEY (`workout_id`) REFERENCES `workouts` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `progress_sets`
+--
+ALTER TABLE `progress_sets`
+  ADD CONSTRAINT `progress_sets_ibfk_1` FOREIGN KEY (`progress_id`) REFERENCES `progress` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `progress_sets_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `progress_sets_ibfk_3` FOREIGN KEY (`plan_id`) REFERENCES `workout_plans` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `progress`
