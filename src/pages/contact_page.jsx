@@ -21,8 +21,8 @@ const Contact = () => {
 
         <div className="contact-card">
           <img src='gmailicon.png' alt="Gmail Icon" className="gmail-icon" />
-          <a href=" " className="email-link">
-            example@gmail.com
+          <a href="mailto:fitnesshubtest@gmail.com" className="email-link">
+            fitnesshubtest@gmail.com
           </a>
         </div>
       </div>
