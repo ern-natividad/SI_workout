@@ -2,16 +2,10 @@
   font-family: "Poppins", Arial, sans-serif;
   color: #f1f1f1;
 
-  
-  background: 
-    linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
-    url('background.jpg') no-repeat center center fixed;
-  background-size: cover;
-
-  padding: 3rem 2rem;
+  background: url("about.jpeg") center/cover no-repeat;
   min-height: 100vh;
+  padding: 5rem 2rem;
 }
-
 
 .about-header {
   text-align: center;
@@ -47,14 +41,15 @@
 
 
 .about-section {
-  background: linear-gradient(135deg, rgba(13, 13, 13, 0.95), rgba(26, 26, 26, 0.9));
+  background: linear-gradient(135deg, rgba(13, 13, 13, 0.98), rgba(26, 26, 26, 0.95));
   border: 2px solid #FF5C00;
   border-radius: 18px;
   padding: 2rem;
   margin: 2rem auto;
-  box-shadow: 0 8px 25px rgba(255, 92, 0, 0.15);
+  box-shadow: 0 8px 25px rgba(255, 92, 0, 0.25);
   max-width: 800px;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  backdrop-filter: blur(10px);
 }
 
 .about-section:hover {
@@ -89,14 +84,149 @@
 
 @media (max-width: 768px) {
   .about-page {
-    padding: 2rem 1.2rem;
+    padding: 2rem 1.5rem;
+    padding-top: 3.5rem;
+  }
+
+  .logo {
+    font-size: 1.8rem;
+    letter-spacing: 1.2px;
+  }
+
+  .about-header {
+    margin-bottom: 2rem;
   }
 
   .about-header h1 {
-    font-size: 1.6rem;
+    font-size: 1.5rem;
+    letter-spacing: 1px;
+  }
+
+  .subtitle {
+    font-size: 0.9rem;
+    max-width: 100%;
+    line-height: 1.6;
   }
 
   .about-section {
     padding: 1.5rem;
+    margin: 1.5rem auto;
+    max-width: 95%;
+    border-radius: 12px;
+  }
+
+  .about-section h2 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+  }
+
+  .about-section p {
+    font-size: 0.9rem;
+    line-height: 1.7;
+    margin-bottom: 1rem;
+  }
+
+  .icon {
+    font-size: 1.8rem;
+    margin-bottom: 1.2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .about-page {
+    padding: 1.5rem 1.2rem;
+    padding-top: 3rem;
+  }
+
+  .logo {
+    font-size: 1.6rem;
+    letter-spacing: 1px;
+  }
+
+  .about-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .about-header h1 {
+    font-size: 1.3rem;
+    letter-spacing: 0.8px;
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+
+  .about-section {
+    padding: 1.2rem;
+    margin: 1.2rem auto;
+    max-width: 98%;
+    border-radius: 10px;
+    border-width: 1.5px;
+  }
+
+  .about-section h2 {
+    font-size: 1.2rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .about-section p {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    margin-bottom: 0.8rem;
+  }
+
+  .icon {
+    font-size: 1.6rem;
+    margin-bottom: 1rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .about-page {
+    padding: 1.2rem 1rem;
+    padding-top: 2.5rem;
+  }
+
+  .logo {
+    font-size: 1.4rem;
+    letter-spacing: 0.8px;
+  }
+
+  .about-header {
+    margin-bottom: 1.2rem;
+  }
+
+  .about-header h1 {
+    font-size: 1.2rem;
+    letter-spacing: 0.6px;
+  }
+
+  .subtitle {
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+
+  .about-section {
+    padding: 1rem;
+    margin: 1rem auto;
+    max-width: 99%;
+    border-radius: 8px;
+  }
+
+  .about-section h2 {
+    font-size: 1.1rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .about-section p {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    margin-bottom: 0.6rem;
+  }
+
+  .icon {
+    font-size: 1.4rem;
+    margin-bottom: 0.8rem;
   }
 }

@@ -245,3 +245,160 @@ h1,.hero-text{
 .information-section p{
   text-align: justify;
 }
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .LandingPage-container {
+    padding: 40px 15px;
+  }
+  
+  .main-logo {
+    width: 160px;
+    height: 50px;
+    margin: 35px auto 25px; /* Added more top margin */
+  }
+  
+  .logo-img {
+    height: 70px;
+  }
+  
+  h1 {
+    font-size: 32px;
+    letter-spacing: 1px;
+    margin-bottom: 15px;
+  }
+  
+  .hero-text {
+    width: 90%;
+    margin: 0 auto 30px;
+    font-size: 0.9rem;
+  }
+  
+  .short-line { width: 150px; }
+  .long-line { width: 280px; }
+  .longer-line { width: 90%; }
+  
+  .information-section {
+    border-radius: 40px 40px;
+    margin-top: 30px;
+    padding: 50px 15px 60px;
+  }
+  
+  .info-section {
+    gap: 25px;
+    margin-top: 30px;
+  }
+  
+  .text-box {
+    padding: 20px;
+    max-width: 100%;
+    margin: 0 10px;
+  }
+  
+  .left-image,
+  .right-image {
+    width: 100%;
+    max-width: 350px;
+    height: auto;
+  }
+  
+  .cta-button {
+    padding: 12px 35px;
+    font-size: 1rem;
+    margin: 10px auto 0;
+  }
+  
+  .info-logo {
+    width: 50px;
+    height: 50px;
+    padding: 8px;
+  }
+  
+  .shorter-line {
+    width: 40px;
+  }
+  
+  .logo-line-container {
+    gap: 15px;
+    margin: 30px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .LandingPage-container {
+    padding: 30px 10px;
+  }
+  
+  .main-logo {
+    width: 120px;
+    height: 40px;
+    margin: 45px auto 20px; /* Added even more top margin for smaller screens */
+  }
+  
+  .logo-img {
+    height: 50px;
+  }
+  
+  h1 {
+    font-size: 24px;
+    letter-spacing: 0.5px;
+  }
+  
+  .hero-text {
+    width: 95%;
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+  }
+  
+  .short-line { width: 100px; }
+  .long-line { width: 200px; }
+  .longer-line { width: 95%; }
+  
+  .information-section {
+    border-radius: 25px 25px;
+    margin-top: 20px;
+    padding: 30px 10px 40px;
+  }
+  
+  .info-section {
+    gap: 20px;
+    margin-top: 20px;
+  }
+  
+  .text-box {
+    padding: 15px;
+    margin: 0 5px;
+  }
+  
+  .text-box h3 {
+    font-size: 1.1rem;
+  }
+  
+  .text-box p {
+    font-size: 0.85rem;
+  }
+  
+  .cta-button {
+    padding: 10px 25px;
+    font-size: 0.9rem;
+  }
+  
+  .footer-text {
+    font-size: 0.85rem;
+  }
+  
+  .info-logo {
+    width: 40px;
+    height: 40px;
+    padding: 6px;
+  }
+  
+  .shorter-line {
+    width: 30px;
+  }
+  
+  .logo-line-container {
+    gap: 10px;
+    margin: 20px 0;
+  }
+}

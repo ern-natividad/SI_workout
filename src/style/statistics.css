@@ -1,7 +1,7 @@
 
 .stats-page {
   min-height: 100vh;
-  background: url("statistics.jpeg") center/cover no-repeat fixed;
+  background: url("statistics.jpeg") center/cover no-repeat;
   padding-top: 110px;
 }
 
@@ -12,12 +12,6 @@
   margin: 0 auto;
   padding: 40px 20px 80px;
   text-align: center;
-
-  background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255,107,0,0.25);
-  border-radius: 20px;
-  box-shadow: 0 0 25px rgba(0,0,0,0.5);
 }
 
 
@@ -170,49 +164,362 @@
 
 
 .history-list {
-  background: rgba(0,0,0,0.55);
-  border: 1px solid rgba(255,107,0,0.2);
+  background: rgba(0,0,0,0.8);
+  border: 1px solid rgba(255,107,0,0.3);
   border-radius: 12px;
-  padding: 18px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 12px;
+  backdrop-filter: blur(10px);
 }
 
 .history-item {
   display: flex;
   justify-content: space-between;
-  padding: 14px;
-  background: rgba(255,255,255,0.05);
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.08);
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(255,107,0,0.2);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.history-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 3px;
+  background: #ff6b00;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.history-item:hover {
+  background: linear-gradient(135deg, rgba(255,107,0,0.15) 0%, rgba(255,255,255,0.05) 100%);
+  border-color: rgba(255,107,0,0.4);
+  transform: translateX(3px);
+}
+
+.history-item:hover::before {
+  opacity: 1;
 }
 
 .history-item h4 {
   margin: 0;
   color: #fff;
+  font-weight: 600;
+  font-size: 15px;
 }
 
 .history-meta {
   font-size: 13px;
-  color: #bbb;
+  color: #aaa;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .history-status {
-  padding: 5px 12px;
-  border-radius: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
 .completed {
-  background: #22c55e;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
   color: #000;
+  border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .missed {
-  background: #ef4444;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: #fff;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .stats-page {
+    padding-top: 80px;
+  }
+  
+  .stats-wrapper {
+    padding: 30px 20px 50px;
+    margin: 0 15px;
+  }
+  
+  .stats-title {
+    font-size: 2.2rem;
+  }
+  
+  .stats-title::after {
+    width: 120px;
+    height: 3px;
+    margin: 12px auto 25px;
+  }
+  
+  .stats-desc {
+    font-size: 0.9rem;
+    margin-bottom: 30px;
+    line-height: 1.6;
+  }
+  
+  .tabs {
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 25px;
+  }
+  
+  .tab-btn {
+    padding: 10px 18px;
+    font-size: 0.85rem;
+  }
+  
+  .chart-container {
+    padding: 25px;
+  }
+  
+  .chart-image {
+    max-height: 300px;
+  }
+  
+  .stats-summary {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  
+  .summary-card {
+    width: 90%;
+    max-width: 280px;
+    padding: 20px;
+  }
+  
+  .summary-value {
+    font-size: 1.3rem;
+  }
+  
+  .progress-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  
+  .progress-card {
+    padding: 20px;
+  }
+  
+  .p-value {
+    font-size: 1.2rem;
+  }
+  
+  .section-header {
+    font-size: 1.5rem;
+    margin-top: 40px;
+    margin-bottom: 20px;
+  }
+  
+  .history-list {
+    padding: 20px;
+  }
+  
+  .history-item {
+    padding: 15px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .history-meta {
+    font-size: 0.85rem;
+  }
+  
+  .history-status {
+    font-size: 0.8rem;
+    padding: 6px 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-page {
+    padding-top: 70px;
+  }
+  
+  .stats-wrapper {
+    padding: 25px 15px 40px;
+    margin: 0 10px;
+  }
+  
+  .stats-title {
+    font-size: 1.8rem;
+  }
+  
+  .stats-title::after {
+    width: 100px;
+    height: 2px;
+    margin: 10px auto 20px;
+  }
+  
+  .stats-desc {
+    font-size: 0.85rem;
+    margin-bottom: 25px;
+    line-height: 1.5;
+  }
+  
+  .tabs {
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  
+  .tab-btn {
+    padding: 8px 15px;
+    font-size: 0.8rem;
+  }
+  
+  .chart-container {
+    padding: 20px;
+  }
+  
+  .chart-image {
+    max-height: 250px;
+  }
+  
+  .summary-card {
+    width: 95%;
+    padding: 18px;
+  }
+  
+  .summary-value {
+    font-size: 1.2rem;
+  }
+  
+  .progress-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  
+  .progress-card {
+    padding: 18px;
+  }
+  
+  .p-value {
+    font-size: 1.1rem;
+  }
+  
+  .section-header {
+    font-size: 1.3rem;
+    margin-top: 30px;
+    margin-bottom: 15px;
+  }
+  
+  .history-list {
+    padding: 18px;
+  }
+  
+  .history-item {
+    padding: 12px;
+  }
+  
+  .history-item h4 {
+    font-size: 0.9rem;
+  }
+  
+  .history-meta {
+    font-size: 0.8rem;
+  }
+  
+  .history-status {
+    font-size: 0.75rem;
+    padding: 5px 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  .stats-page {
+    padding-top: 60px;
+  }
+  
+  .stats-wrapper {
+    padding: 20px 12px 35px;
+    margin: 0 8px;
+  }
+  
+  .stats-title {
+    font-size: 1.6rem;
+  }
+  
+  .stats-desc {
+    font-size: 0.8rem;
+    margin-bottom: 20px;
+  }
+  
+  .tab-btn {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+  
+  .chart-container {
+    padding: 15px;
+  }
+  
+  .chart-image {
+    max-height: 220px;
+  }
+  
+  .summary-card {
+    padding: 15px;
+  }
+  
+  .summary-value {
+    font-size: 1.1rem;
+  }
+  
+  .progress-card {
+    padding: 15px;
+  }
+  
+  .p-title {
+    font-size: 0.8rem;
+  }
+  
+  .p-value {
+    font-size: 1rem;
+  }
+  
+  .section-header {
+    font-size: 1.2rem;
+    margin-top: 25px;
+    margin-bottom: 12px;
+  }
+  
+  .history-list {
+    padding: 15px;
+  }
+  
+  .history-item {
+    padding: 10px;
+  }
+  
+  .history-item h4 {
+    font-size: 0.85rem;
+  }
+  
+  .history-meta {
+    font-size: 0.75rem;
+  }
+  
+  .history-status {
+    font-size: 0.7rem;
+    padding: 4px 8px;
+  }
 }
 
 

@@ -108,3 +108,286 @@
   color: #ff6b00;
   text-decoration: underline;
 }
+
+/* Header Mobile Responsive Styles */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 60px;
+  background-color: #000;            
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  border-bottom: 1px solid #ff6b00;
+  z-index: 1000;
+  box-sizing: border-box;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 18px;        
+}
+
+.logo-wrap {
+  height: 48px;
+  width: 100px; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ff6b00;
+  clip-path: polygon(0 0, 100% 0, 75% 100%, 0% 100%);
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+  overflow: hidden;
+  margin-left: -22px; 
+}
+
+.header-logo {
+  height: 34px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+  background: transparent; 
+  filter: none;           
+}
+
+.nav-links ul {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  gap: 26px;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-links a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 6px 0;
+  position: relative;
+}
+
+.nav-links a:hover,
+.nav-links a:focus {
+  color: #ff6b00;
+}
+
+.nav-links a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -8px;
+  width: 0%;
+  height: 2px;
+  background: #ff6b00;
+  transition: width 0.22s ease;
+}
+
+.nav-links a:hover::after {
+  width: 100%;
+}
+
+.nav-links a.nav-active,
+.nav-links a.nav-active:hover,
+.nav-links a.nav-active:focus {
+  color: #ff6b00 !important;
+}
+
+.nav-links a.nav-active::after,
+.nav-links a.nav-active:hover::after,
+.nav-links a.nav-active:focus::after {
+  width: 100% !important;
+}
+
+.profile-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-image {
+  height: 34px;
+  width: 34px;
+  border-radius: 50%;
+  border: 2px solid #ff6b00;
+  object-fit: cover;
+  display: block;
+}
+
+/* Header Mobile Responsive */
+@media (max-width: 720px) {
+  .logo-wrap { width: 64px; height: 44px; }
+  .header-logo { height: 28px; }
+  .nav-links ul { gap: 14px; }
+  .nav-links a { font-size: 14px; }
+  .profile-image { height: 30px; width: 30px; }
+  .profile-link { margin-left: auto; }
+}
+
+@media (max-width: 480px) {
+  .header {
+    height: 50px;
+    padding: 0 15px;
+  }
+  
+  .header-left {
+    gap: 12px;
+  }
+  
+  .logo-wrap {
+    width: 50px;
+    height: 36px;
+    margin-left: -15px;
+  }
+  
+  .header-logo {
+    height: 22px;
+  }
+  
+  .nav-links ul {
+    gap: 10px;
+  }
+  
+  .nav-links a {
+    font-size: 12px;
+    padding: 4px 0;
+  }
+  
+  .nav-links a::after {
+    bottom: -6px;
+    height: 1.5px;
+  }
+  
+  .profile-link {
+    display: none;
+  }
+  
+  body {
+    padding-top: 50px;
+  }
+}
+
+@media (max-width: 360px) {
+  .header {
+    height: 45px;
+    padding: 0 10px;
+  }
+  
+  .header-left {
+    gap: 8px;
+  }
+  
+  .logo-wrap {
+    width: 45px;
+    height: 32px;
+    margin-left: -10px;
+  }
+  
+  .header-logo {
+    height: 20px;
+  }
+  
+  .nav-links ul {
+    gap: 8px;
+  }
+  
+  .nav-links a {
+    font-size: 11px;
+  }
+  
+  .profile-link {
+    display: none;
+  }
+  
+  body {
+    padding-top: 45px;
+  }
+}
+
+/* Contact Page Mobile Responsive */
+@media (max-width: 768px) {
+  .contact-container {
+    padding: 40px 15px;
+  }
+  
+  .logo-line {
+    margin-bottom: 30px;
+  }
+  
+  .contact-title {
+    font-size: 2rem;
+    margin-bottom: 10px;
+  }
+  
+  .contact-text {
+    font-size: 0.9rem;
+    margin-bottom: 30px;
+  }
+  
+  .contact-card {
+    width: 90%;
+    max-width: 350px;
+    padding: 30px;
+  }
+  
+  .gmail-icon {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .email-link {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .contact-container {
+    padding: 30px 10px;
+  }
+  
+  .logo-line {
+    gap: 15px;
+    margin-bottom: 25px;
+  }
+  
+  .line {
+    width: 40px;
+  }
+  
+  .contact-logo {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .contact-title {
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+  }
+  
+  .contact-text {
+    font-size: 0.85rem;
+    margin-bottom: 25px;
+  }
+  
+  .contact-card {
+    width: 95%;
+    max-width: 320px;
+    padding: 25px 20px;
+  }
+  
+  .gmail-icon {
+    width: 50px;
+    height: 50px;
+    margin-bottom: 12px;
+  }
+  
+  .email-link {
+    font-size: 0.95rem;
+  }
+}

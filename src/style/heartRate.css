@@ -8,7 +8,7 @@
   justify-content: center;
   align-items: flex-start;
 }
-.hr-container{ width:980px; max-width:96%; background: rgba(12,12,12,0.6); border-radius:14px; padding:20px; border:1px solid rgba(255,140,0,0.08); box-shadow:0 10px 30px rgba(0,0,0,0.6); margin-top: 50px;} 
+.hr-container{ width:980px; max-width:96%; background: rgba(12,12,12,0.6); border-radius:14px; padding:20px; border:1px solid rgba(255,140,0,0.08); box-shadow:0 10px 30px rgba(0,0,0,0.6); margin-top: 50px; text-align: left; } 
 .hr-header h1{ margin:0; font-size:28px; color:#fff; text-align:left;}
 .hr-sub{ color:#e6b89a; margin-top:6px; }
 
@@ -44,4 +44,185 @@
 @media (max-width:760px){
   .age-control input[type=range]{ width:100%; }
   .hr-summary{ flex-direction:column }
+}
+
+@media (max-width: 768px) {
+  .hr-wrapper {
+    padding: 40px 15px;
+  }
+  
+  .hr-container {
+    padding: 15px;
+    margin-top: 30px;
+  }
+  
+  .hr-header h1 {
+    font-size: 24px;
+  }
+  
+  .hr-sub {
+    font-size: 14px;
+  }
+  
+  .hr-controls {
+    gap: 15px;
+  }
+  
+  .control {
+    padding: 10px;
+  }
+  
+  .age-control input[type=range] {
+    width: 280px;
+  }
+  
+  .resting-control input[type=number] {
+    width: 100px;
+    padding: 6px;
+  }
+  
+  .hr-card {
+    min-width: 160px;
+    padding: 12px;
+  }
+  
+  .hr-icon {
+    font-size: 28px;
+  }
+  
+  .hr-number {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hr-wrapper {
+    padding: 25px 12px;
+  }
+  
+  .hr-container {
+    padding: 12px;
+    margin-top: 20px;
+  }
+  
+  .hr-header h1 {
+    font-size: 18px;
+  }
+  
+  .hr-sub {
+    font-size: 12px;
+  }
+  
+  .hr-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
+  
+  .control {
+    padding: 10px;
+  }
+  
+  .age-control input[type=range] {
+    width: 100%;
+  }
+  
+  .resting-control input[type=number] {
+    width: 100%;
+    max-width: 180px;
+  }
+  
+  .hr-card {
+    min-width: 120px;
+    padding: 10px;
+  }
+  
+  .hr-card.small {
+    min-width: 100px;
+  }
+  
+  .hr-icon {
+    font-size: 22px;
+  }
+  
+  .hr-number {
+    font-size: 16px;
+  }
+  
+  .hr-number.small {
+    font-size: 14px;
+  }
+  
+  .zone-card {
+    padding: 10px;
+  }
+  
+  .zone-left .zone-title {
+    font-size: 13px;
+  }
+  
+  .zone-left .zone-desc {
+    font-size: 11px;
+  }
+  
+  .zone-right {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 360px) {
+  .hr-wrapper {
+    padding: 20px 10px;
+  }
+  
+  .hr-container {
+    padding: 10px;
+  }
+  
+  .hr-header h1 {
+    font-size: 16px;
+  }
+  
+  .hr-sub {
+    font-size: 11px;
+  }
+  
+  .control {
+    padding: 8px;
+  }
+  
+  .hr-card {
+    min-width: 100px;
+    padding: 8px;
+  }
+  
+  .hr-icon {
+    font-size: 20px;
+  }
+  
+  .hr-number {
+    font-size: 14px;
+  }
+  
+  .hr-number.small {
+    font-size: 12px;
+  }
+  
+  .zone-card {
+    padding: 8px;
+  }
+  
+  .zone-left .zone-title {
+    font-size: 12px;
+  }
+  
+  .zone-left .zone-desc {
+    font-size: 10px;
+  }
+  
+  .zone-right {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
 }
