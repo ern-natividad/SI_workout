@@ -311,14 +311,7 @@ const HomePage = () => {
 
             {exercises.map((ex, idx) => (
               <div key={ex.id} className="exercise-card" onClick={() => handleExerciseClick(ex, idx)}>
-                <div className="exercise-card-header" 
-                style={{ 
-                  display: 'flex', 
-                  flexDirection: 'row', 
-                  alignItems: 'center',
-                  justifyContent: 'flex-start',
-                  gap: '70px',
-                }} >
+                <div className="exercise-card-header responsive-ex-header">
                   <ExerciseImage
                     gifUrl={ex.gifUrl}
                     exerciseId={ex.id}
@@ -326,25 +319,14 @@ const HomePage = () => {
                     className="exercise-thumb"
                     width={240}
                   />
-
-                  {/*<div className="exercise-card-dot"></div>*/}
-                  <div style={{
-                    width : '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start',
-                    gap: '10px',
-                  }}>
+                  <div className="exercise-card-info-col">
                     <h4 className="ex-card-name" style={{fontSize: '25px'}} >{ex.name}</h4>
-                  <p className="exercise-card-info" style={{fontSize: '18px'}} >{ex.sets} × {ex.reps} reps</p>
+                    <p className="exercise-card-info" style={{fontSize: '18px'}} >{ex.sets} × {ex.reps} reps</p>
                     <button type="button" className="exercise-card-btn" onClick={(e) => { e.stopPropagation(); handleExerciseClick(ex, idx); }}>
                       Start
                     </button>
                   </div>
-                  
                 </div>
-                
-                
               </div>
             ))}
           </div>
