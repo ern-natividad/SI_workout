@@ -95,7 +95,7 @@ const HomePage = () => {
     const API_BASE = import.meta.env.VITE_API_BASE || '';
     const EXERCISE_DB_HOST = 'exercisedb.p.rapidapi.com';
 
-    // Query metadata by name and return a candidate gifUrl (or empty string)
+    // Query metadata by name and return id-based proxy URL (most reliable)
     const fetchOneImage = async (ex) => {
       if (ex.gifUrl) return ex;
       try {
@@ -104,35 +104,16 @@ const HomePage = () => {
         const name = ex.name || '';
         const data = await fetchWithMiddleware(`/api/exercises/name/${name}`, { method: 'GET' });
 
-        let candidate = '';
         let upstreamId = null;
         if (Array.isArray(data) && data.length > 0) {
-          candidate = pickGif(data[0]) || '';
           upstreamId = data[0].id || null;
         } else if (data && typeof data === 'object') {
-          candidate = pickGif(data) || '';
           upstreamId = data.id || null;
         }
 
-        // If metadata returned a candidate, prefer using the upstream/exercisedb id
-        // when the gifUrl points to the exercisedb host. If no candidate GIF is present
-        // but the upstream metadata includes an `id`, prefer that id for the id-based proxy.
-        if (candidate) {
-          try {
-            const u = new URL(candidate);
-              if (u.hostname === EXERCISE_DB_HOST && upstreamId) {
-              return { ...ex, gifUrl: API_BASE + `/api/exercises/imageById?exerciseId=${encodeURIComponent(upstreamId)}&resolution=360` };
-            }
-          } catch (e) {
-            // ignore URL parse errors and fall back to candidate value
-          }
-
-          return { ...ex, gifUrl: candidate };
-        }
-
-        // No candidate gifUrl found; if upstream metadata gave us an exercisedb id,
-        // use it to build an id-based proxy so the image matches the upstream exercise.
-        if (!candidate && upstreamId) {
+        // Prefer id-based proxy URL if we have an upstream id (most reliable).
+        // This ensures images load even if gifUrl field is missing or unavailable.
+        if (upstreamId) {
           return { ...ex, gifUrl: API_BASE + `/api/exercises/imageById?exerciseId=${encodeURIComponent(upstreamId)}&resolution=360` };
         }
 
