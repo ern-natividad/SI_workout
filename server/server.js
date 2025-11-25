@@ -28,7 +28,10 @@ if (process.env.NODE_ENV === 'production' && FRONTEND_URL) {
   app.use(cors());
 }
 // Basic security headers
-app.use(helmet());
+// Disable COEP/COOP here so proxied images that set CORP can be embedded
+// without the app requiring cross-origin isolation. Individual routes still
+// set Cross-Origin-Resource-Policy / Access-Control-Allow-Origin as needed.
+app.use(helmet({ crossOriginEmbedderPolicy: false, crossOriginOpenerPolicy: false }));
 
 // Rate limiting (configurable via env vars)
 const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000; // 15 minutes
